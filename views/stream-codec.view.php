@@ -676,7 +676,8 @@ const StreamCodec = (() => {
   api.toggleMic = async function() {
     if (!_call) return;
     try {
-      await _call.microphone.toggle();
+      if (_micOn) await _call.microphone.disable();
+      else await _call.microphone.enable();
       _micOn = !_micOn;
       _updateControls();
     } catch (e) {
@@ -689,7 +690,8 @@ const StreamCodec = (() => {
   api.toggleCam = async function() {
     if (!_call) return;
     try {
-      await _call.camera.toggle();
+      if (_camOn) await _call.camera.disable();
+      else await _call.camera.enable();
       _camOn = !_camOn;
       _updateControls();
     } catch (e) {
@@ -802,7 +804,7 @@ const StreamCodec = (() => {
    * Detects when another player started a call and shows incoming banner
    */
   api._checkCallState = function(callActive) {
-    if (!callActive) {
+    if (!callActive || !callActive.active) {
       _lastCallActiveId = null;
       return;
     }
