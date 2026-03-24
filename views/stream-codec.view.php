@@ -349,16 +349,29 @@ const StreamCodec = (() => {
     // Set viewport for visibility tracking
     try { _call.setViewport(grid); } catch(e) {}
 
-    _call.state.participants$.subscribe((participants) => {
-      // Render / update each participant
-      participants.forEach(p => {
+    _call.state.participants$.subscribe((rawParticipants) => {
+      // Deduplicate participants by userId to prevent "ghost" clones (e.g., from unclosed mobile transfers)
+      const uniqueParticipants = [];
+      const seenUserIds = new Set();
+      
+      // Iterate backwards to prioritize newly joined sessions over stale ghosts
+      for (let i = rawParticipants.length - 1; i >= 0; i--) {
+        const p = rawParticipants[i];
+        if (!seenUserIds.has(p.userId)) {
+          seenUserIds.add(p.userId);
+          uniqueParticipants.push(p);
+        }
+      }
+
+      // Render / update each unique participant
+      uniqueParticipants.forEach(p => {
         _renderParticipant(p, grid);
       });
 
       // Remove stale tiles
       grid.querySelectorAll('.stream-tile').forEach(tileEl => {
         const sid = tileEl.dataset.sessionId;
-        if (sid && !participants.find(p => p.sessionId === sid)) {
+        if (sid && !uniqueParticipants.find(p => p.sessionId === sid)) {
           _cleanupParticipant(sid);
           tileEl.remove();
         }
