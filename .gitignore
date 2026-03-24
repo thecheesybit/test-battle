@@ -1,0 +1,8 @@
+# Ignore credentials
+includes/config.php
+
+# Ignore test data and JSON databases
+wp-content/omr-data/
+
+# Mac OS Directory Meta
+.DS_Store
