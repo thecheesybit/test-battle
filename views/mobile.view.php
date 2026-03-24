@@ -11,7 +11,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>OMR Call — Mobile</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css">
 <style>
 /* Reset and core */
 :root {
@@ -201,11 +200,11 @@ function renderChat() {
     const t = new Date(m.ts * 1000);
     const h = t.getHours().toString().padStart(2,'0');
     const min = t.getMinutes().toString().padStart(2,'0');
-    return \`<div class="chat-msg">
-      <div class="chat-from">\${escHtml(m.from)}</div>
-      <div>\${escHtml(m.msg)}</div>
-      <div class="chat-time">\${h}:\${min}</div>
-    </div>\`;
+    return `<div class="chat-msg">
+      <div class="chat-from">${escHtml(m.from)}</div>
+      <div>${escHtml(m.msg)}</div>
+      <div class="chat-time">${h}:${min}</div>
+    </div>`;
   }).join('') || '<div style="color:#888;text-align:center;padding:10px;">No messages</div>';
   
   if (wasAtBottom) el.scrollTo(0, el.scrollHeight);
