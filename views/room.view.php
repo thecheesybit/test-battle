@@ -2013,7 +2013,14 @@ function renderQuestion() {
 
   // Submitted banner
   if (state.submitted) {
-    html += `<div class="submitted-banner">✓ You have submitted your answers. You can still view responses.</div>`;
+    let endTestBtn = '';
+    if (room.status === 'active') {
+       endTestBtn = `<button onclick="forceEndTest()" style="margin-left:auto; background:var(--danger); color:#fff; border:none; padding:4px 10px; border-radius:6px; font-size:0.75rem; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:4px; box-shadow:0 2px 8px rgba(255,71,87,0.3);">🛑 End Test Now</button>`;
+    }
+    html += `<div class="submitted-banner" style="display:flex; align-items:center; flex-wrap:wrap; gap:10px;">
+      <div>✓ You have submitted your answers. You can still view responses.</div>
+      ${endTestBtn}
+    </div>`;
   }
 
   if (isCompactMode) {
@@ -2688,6 +2695,19 @@ async function confirmSubmit() {
       renderQuestion();
     }
   } catch(e) { showToast('Submit failed. Please retry.', 'error'); state.submitted = false; }
+}
+
+async function forceEndTest() {
+  if (!confirm("Are you sure you want to forcibly END THE TEST for everyone right now?")) return;
+  closeAllModals();
+  try {
+    const d = await api({action:'submit_player', room_id:ROOM_ID, player_id:MY_CODE, force_end: true});
+    if (d.success) {
+      await syncRoom();
+      showResultScreen();
+      showToast('Test ended by you.', 'ok');
+    }
+  } catch(e) { showToast('Failed to end test. Please retry.', 'error'); }
 }
 
 // ══════════════════════════════════════════════════════════════

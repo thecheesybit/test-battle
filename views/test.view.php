@@ -1526,13 +1526,20 @@ async function fetchActiveTests() {
             onClickAction = `startReattempt('${r.room_id}', '${r.code}')`;
         }
 
+        let actionsHtml = `<div class="recent-badge" style="color:${statusColor};border-color:${statusColor};background:rgba(255,255,255,0.05);">${badgeText}</div>`;
+        if (r.status === 'finished') {
+           actionsHtml += `<button class="recent-badge" onclick="event.stopPropagation(); window.location.href='room.php?player_id=${r.code}&room_id=${r.room_id}'" style="background:var(--surface2); color:var(--text); border-color:var(--border); cursor:pointer; margin-left:6px; transition:var(--tr);" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'" title="View Result">📊 View Result</button>`;
+        }
+
         html += `<div class="recent-item" onclick="${onClickAction}" style="border-color:${statusColor}; background:rgba(255,255,255,0.03);">
           <div class="recent-icon">${r.status === 'finished' ? '♻️' : '⏳'}</div>
-          <div class="recent-info">
+          <div class="recent-info" style="flex:1;">
             <div class="recent-name" style="color:var(--text);">${escHtml(r.test_name)}</div>
             <div class="recent-meta">${meta}</div>
           </div>
-          <div class="recent-badge" style="color:${statusColor};border-color:${statusColor};background:rgba(255,255,255,0.05);">${badgeText}</div>
+          <div style="display:flex; align-items:center;">
+             ${actionsHtml}
+          </div>
         </div>`;
       });
       list.innerHTML = html;
