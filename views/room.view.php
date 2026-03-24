@@ -2762,6 +2762,17 @@ async function syncAndUpdate() {
   // Check for incoming video calls via polling
   if (typeof StreamCodec !== 'undefined' && StreamCodec._checkCallState) {
     StreamCodec._checkCallState(room.call_active);
+
+    // Auto-handover (check if my local active_msid was set)
+    if (state.myIdx >= 0 && room.players[state.myIdx]) {
+        const p = room.players[state.myIdx];
+        if (p.active_msid && !window._mobileTransferActive) {
+            window._mobileTransferActive = true;
+            if (StreamCodec.handleMobileTransfer) {
+                StreamCodec.handleMobileTransfer();
+            }
+        }
+    }
   }
 }
 

@@ -92,6 +92,7 @@
   background: var(--surface2);
   align-items: center;
   justify-content: center;
+  padding-right: 70px; /* Leave space for tools-fab */
 }
 .stream-ctrl-btn {
   width: 32px; height: 32px;
@@ -766,7 +767,6 @@ const StreamCodec = (() => {
             <img id="sc-qr-img" src="" style="width:200px;height:200px;display:block;">
           </div>
           <div class="modal-actions" style="flex-direction:column;gap:.5rem;">
-            <button class="btn-modal confirm" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);" onclick="StreamCodec.leaveCall();document.getElementById('sc-transfer-modal').classList.remove('open')">Disconnect Here</button>
             <button class="btn-modal cancel" onclick="document.getElementById('sc-transfer-modal').classList.remove('open')">Close</button>
           </div>
         </div>
@@ -827,6 +827,35 @@ const StreamCodec = (() => {
     _call = null;
     _client = null;
     _inCall = false;
+  };
+
+  /**
+   * handleMobileTransfer()
+   */
+  api.handleMobileTransfer = async function() {
+      if (_call) { try { await _call.leave(); } catch(e) {} }
+      if (_client) { try { await _client.disconnectUser(); } catch(e) {} }
+      _clearAllTiles();
+      _call = null;
+      _client = null;
+      _inCall = false;
+      document.getElementById('stream-video-grid').innerHTML = 
+          '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);text-align:center;">' +
+          '<div style="font-size:2rem;margin-bottom:1rem;">📱</div>' +
+          '<div style="font-weight:700;">Transferred to Mobile</div><div style="font-size:.75rem;margin-top:.4rem;line-height:1.4;">Your camera and microphone are now<br>operating on your phone.</div></div>';
+      
+      const modal = document.getElementById('sc-transfer-modal');
+      if (modal) modal.classList.remove('open');
+      
+      const st = document.getElementById('stream-status');
+      if (st) {
+          st.textContent = 'Mobile Active';
+          st.className = 'stream-status connected';
+      }
+      hide(document.getElementById('stream-call-banner'));
+      
+      // Hide buttons gracefully except settings maybe, but mobile has them
+      hide($('sc-mic')); hide($('sc-cam')); hide($('sc-speaker')); hide($('sc-call')); hide($('sc-leave'));
   };
 
   // Expose globally

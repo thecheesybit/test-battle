@@ -14,6 +14,15 @@
 <link rel="stylesheet" href="assets/css/style.css">
 <style>
 /* Reset and core */
+:root {
+  --bg: #07080f;
+  --surface: #0f1018;
+  --surface2: #171825;
+  --border: #252638;
+  --p0: #5b7fff; --p0-dim: rgba(91,127,255,0.12);
+  --text: #eaeaf5; --muted: #5a5a7a;
+  --danger: #ff4757; --warn: #ffa502; --ok: #4fffb0;
+}
 * { box-sizing: border-box; }
 body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
@@ -154,15 +163,20 @@ async function syncRoom() {
       $('global-loading').classList.add('hidden');
       const myName = state.myIdx >= 0 ? d.players[state.myIdx].name : 'Mobile';
       
-      // Init video client
-      StreamCodec.init(ROOM_ID, MY_CODE, myName);
-      
-      // Auto join if there's already an active call
-      if (d.call_active && d.call_active.active) {
-          setTimeout(() => {
-              if (StreamCodec.acceptCall) StreamCodec.acceptCall();
-          }, 1000);
-      }
+      // Init video client - securely wait for the module to load
+      const initVideoClient = () => {
+          if (typeof StreamCodec === 'undefined' || !StreamCodec.init) {
+              setTimeout(initVideoClient, 200);
+              return;
+          }
+          StreamCodec.init(ROOM_ID, MY_CODE, myName);
+          if (d.call_active && d.call_active.active) {
+              setTimeout(() => {
+                  if (StreamCodec.acceptCall) StreamCodec.acceptCall();
+              }, 1000);
+          }
+      };
+      initVideoClient();
     }
 
     // Render Chat
