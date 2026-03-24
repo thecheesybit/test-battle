@@ -778,8 +778,11 @@ const StreamCodec = (() => {
         <div class="modal" style="max-width:320px;text-align:center;">
           <div class="modal-title">Transfer to Mobile</div>
           <div class="modal-sub">Scan to switch your camera and mic to your phone</div>
-          <div style="background:#fff;padding:10px;border-radius:12px;display:inline-block;margin-bottom:1.5rem;">
+          <div style="background:#fff;padding:10px;border-radius:12px;display:inline-block;margin-bottom:1rem;">
             <img id="sc-qr-img" src="" style="width:200px;height:200px;display:block;">
+          </div>
+          <div style="margin-bottom:1.5rem;">
+            <button class="btn-modal" id="sc-copy-btn" onclick="StreamCodec.copyTransferLink()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:.8rem;padding:.5rem 1rem;">📋 Copy Link</button>
           </div>
           <div class="modal-actions" style="flex-direction:column;gap:.5rem;">
             <button class="btn-modal cancel" onclick="document.getElementById('sc-transfer-modal').classList.remove('open')">Close</button>
@@ -794,9 +797,24 @@ const StreamCodec = (() => {
     baseUrl = baseUrl.replace('room.php', 'mobile.php');
     const msid = Math.random().toString(36).substr(2, 9);
     const transferUrl = baseUrl + '?room_id=' + encodeURIComponent(_roomId) + '&player_id=' + encodeURIComponent(_playerCode) + '&msid=' + msid;
+    window._transferUrl = transferUrl; // Expose for Copy Link button
     
     document.getElementById('sc-qr-img').src = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(transferUrl);
     modal.classList.add('open');
+  };
+
+  /**
+   * copyTransferLink()
+   */
+  api.copyTransferLink = function() {
+      const btn = document.getElementById('sc-copy-btn');
+      if (!window._transferUrl) return;
+      navigator.clipboard.writeText(window._transferUrl).then(() => {
+          if (btn) {
+              btn.textContent = '✅ Copied!';
+              setTimeout(() => btn.textContent = '📋 Copy Link', 2000);
+          }
+      });
   };
 
   /**

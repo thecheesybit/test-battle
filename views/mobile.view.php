@@ -119,6 +119,7 @@ let state = {
 };
 let syncTimer = null;
 let _firstSync = true;
+let _firstSyncCallCheck = true;
 
 const $ = id => document.getElementById(id);
 const escHtml = s => {
@@ -173,11 +174,8 @@ async function syncRoom() {
               return;
           }
           StreamCodec.init(ROOM_ID, MY_CODE, myName);
-          if (d.call_active && d.call_active.active) {
-              setTimeout(() => {
-                  if (StreamCodec.acceptCall) StreamCodec.acceptCall();
-              }, 1000);
-          }
+          // Auto-join is fundamentally unsupported on iOS due to MediaStream constraints needing a strict user tap event.
+          // We will instead let the user click the active green call button to start their camera unhindered.
       };
       initVideoClient();
     }
@@ -187,6 +185,12 @@ async function syncRoom() {
     
     // Incoming call polling
     if (StreamCodec && StreamCodec._checkCallState) {
+      if (_firstSyncCallCheck) {
+          if (d.call_active && d.call_active.active && d.call_active.caller_code !== MY_CODE) {
+              StreamCodec._lastCallActiveId = d.call_active.caller_code + '_' + d.call_active.started_at;
+          }
+          _firstSyncCallCheck = false;
+      }
       StreamCodec._checkCallState(d.call_active);
     }
   } catch(e) { }
