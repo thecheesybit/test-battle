@@ -66,7 +66,7 @@ body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-fa
 </div>
 
 <div class="mobile-topbar">
-  <div class="mobile-brand">Mobile Call</div>
+  <div class="mobile-brand"><?= htmlspecialchars($myName ?? 'Mobile Player') ?>'s Lobby</div>
   <div class="mobile-status" id="stream-status">Init...</div>
 </div>
 

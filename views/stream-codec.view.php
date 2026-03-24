@@ -351,17 +351,33 @@ const StreamCodec = (() => {
 
     _call.state.participants$.subscribe((rawParticipants) => {
       // Deduplicate participants by userId to prevent "ghost" clones (e.g., from unclosed mobile transfers)
-      const uniqueParticipants = [];
-      const seenUserIds = new Set();
+      const uniqueMap = new Map();
       
-      // Iterate backwards to prioritize newly joined sessions over stale ghosts
-      for (let i = rawParticipants.length - 1; i >= 0; i--) {
-        const p = rawParticipants[i];
-        if (!seenUserIds.has(p.userId)) {
-          seenUserIds.add(p.userId);
-          uniqueParticipants.push(p);
-        }
+      for (const p of rawParticipants) {
+          const existing = uniqueMap.get(p.userId);
+          if (!existing) {
+              uniqueMap.set(p.userId, p);
+          } else {
+              // Prioritize the session that is actively publishing AV tracks (e.g. the new mobile device)
+              const existingAV = (existing.publishedTracks && existing.publishedTracks.length > 0);
+              const newAV = (p.publishedTracks && p.publishedTracks.length > 0);
+              
+              if (newAV && !existingAV) {
+                  uniqueMap.set(p.userId, p);
+              } else if (newAV === existingAV) {
+                  // If both or neither have tracks, prioritize the one that joined later
+                  const t1 = existing.joinedAt ? new Date(existing.joinedAt).getTime() : 0;
+                  const t2 = p.joinedAt ? new Date(p.joinedAt).getTime() : 0;
+                  if (t2 > t1) {
+                      uniqueMap.set(p.userId, p);
+                  } else if (t1 === t2 && existing.isLocalParticipant && !p.isLocalParticipant) {
+                      // Desktop observer drops its own local participant feed in favor of tracking its own Mobile broadcast
+                      uniqueMap.set(p.userId, p);
+                  }
+              }
+          }
       }
+      const uniqueParticipants = Array.from(uniqueMap.values());
 
       // Render / update each unique participant
       uniqueParticipants.forEach(p => {
@@ -417,8 +433,8 @@ const StreamCodec = (() => {
       if (participant.isLocalParticipant) video.muted = true;
       tile.appendChild(video);
 
-      // Audio element (remote only)
-      if (!participant.isLocalParticipant) {
+      // Audio element (remote only, and never for ourselves if we have multiple sessions)
+      if (!participant.isLocalParticipant && participant.userId !== _userId) {
         const audio = document.createElement('audio');
         audio.id = `stream-aud-${sid}`;
         audio.autoplay = true;
@@ -456,8 +472,8 @@ const StreamCodec = (() => {
         _videoBindings.set(sid, unbind);
       } catch (e) { console.warn('[StreamCodec] Video bind error:', e); }
 
-      // Bind audio (remote only)
-      if (!participant.isLocalParticipant) {
+      // Bind audio (remote only, and never for ourselves if we have multiple sessions)
+      if (!participant.isLocalParticipant && participant.userId !== _userId) {
         try {
           const audioEl = $(`stream-aud-${sid}`);
           if (audioEl) {
@@ -483,7 +499,7 @@ const StreamCodec = (() => {
     }
 
     // Apply speaker mute
-    if (!participant.isLocalParticipant) {
+    if (!participant.isLocalParticipant && participant.userId !== _userId) {
       const audioEl = $(`stream-aud-${sid}`);
       if (audioEl) audioEl.muted = !_spkOn;
     }
