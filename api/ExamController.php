@@ -243,6 +243,8 @@ class ExamController {
         $needsWrite = false;
         $superseded = false;
         
+        $claimMsid = !empty($input['claim_msid']);
+        
         $room = loadRoom($roomId);
         if (!$room) jsonOut(['error' => 'Room not found'], 404);
 
@@ -256,10 +258,10 @@ class ExamController {
                 $needsWrite = true;
             }
             if ($msid) {
-                if (isset($room['players'][$pidx]['active_msid']) && $room['players'][$pidx]['active_msid'] !== $msid) {
+                if (!$claimMsid && isset($room['players'][$pidx]['active_msid']) && $room['players'][$pidx]['active_msid'] !== $msid) {
                     $superseded = true;
                 }
-                if (($room['players'][$pidx]['active_msid'] ?? '') !== $msid) {
+                if ($claimMsid || ($room['players'][$pidx]['active_msid'] ?? '') !== $msid) {
                     $needsWrite = true;
                 }
             }
@@ -277,14 +279,14 @@ class ExamController {
         }
 
         if ($needsWrite) {
-            updateRoom($roomId, function(&$r) use ($pidx, $sessionId, $msid, $now) {
+            updateRoom($roomId, function(&$r) use ($pidx, $sessionId, $msid, $now, $claimMsid) {
                 if ($pidx >= 0 && isset($r['players'][$pidx])) {
                     $r['players'][$pidx]['online_at'] = $now;
                     if ($sessionId) {
                         $r['players'][$pidx]['active_session'] = $sessionId;
                     }
                     if ($msid) {
-                        if (isset($r['players'][$pidx]['active_msid']) && $r['players'][$pidx]['active_msid'] !== $msid) {
+                        if (!$claimMsid && isset($r['players'][$pidx]['active_msid']) && $r['players'][$pidx]['active_msid'] !== $msid) {
                             return false; // Error handled above before write
                         }
                         $r['players'][$pidx]['active_msid'] = $msid;

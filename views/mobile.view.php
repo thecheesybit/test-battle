@@ -118,6 +118,7 @@ let state = {
   lastChatCount: 0
 };
 let syncTimer = null;
+let _firstSync = true;
 
 const $ = id => document.getElementById(id);
 const escHtml = s => {
@@ -142,7 +143,10 @@ async function api(payload) {
 // ── SYNC ──
 async function syncRoom() {
   try {
-    const d = await api({action:'sync', room_id:ROOM_ID, player_id:MY_CODE, msid:MSID});
+    const payload = {action:'sync', room_id:ROOM_ID, player_id:MY_CODE, msid:MSID};
+    if (_firstSync) payload.claim_msid = 1;
+    _firstSync = false;
+    const d = await api(payload);
     if (d.error) {
         if (d.error === 'superseded') {
             alert("Transferred to a newer device. This session will now disconnect.");
