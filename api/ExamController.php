@@ -209,9 +209,21 @@ class ExamController {
         $error = null;
         $startedAt = null;
 
-        $success = updateRoom($roomId, function(&$room) use (&$error, &$startedAt) {
+        $success = updateRoom($roomId, function(&$room) use ($code, &$error, &$startedAt) {
             if ($room['status'] !== 'waiting') {
                 $error = 'Test already started or ended';
+                return false;
+            }
+            // Verify requester is the host (player index 0)
+            $isHost = false;
+            foreach ($room['players'] as $i => $p) {
+                if (($p['code'] ?? '') === $code && $i === 0) {
+                    $isHost = true;
+                    break;
+                }
+            }
+            if (!$isHost) {
+                $error = 'Only the host can start the test';
                 return false;
             }
             $room['status'] = 'active';
@@ -282,13 +294,26 @@ class ExamController {
             updateRoom($roomId, function(&$r) use ($pidx, $sessionId, $msid, $now, $claimMsid) {
                 
                 // Active garbage collection across the board for dropped mobile handovers
+                // Mobile sessions expire after 30 minutes max, or 12s without ping
                 foreach ($r['players'] as $i => $p) {
-                    if (!empty($p['active_msid']) && isset($p['msid_ping'])) {
-                        // Mobile syncRoom() runs every 2.5s. Missing 5 pings = Mobile died
-                        if ($now - $p['msid_ping'] > 12) {
+                    if (!empty($p['active_msid'])) {
+                        $msidAge = $now - ($p['msid_ping'] ?? 0);
+                        $msidCreated = $p['msid_created'] ?? ($p['msid_ping'] ?? 0);
+                        $msidTotalAge = $now - $msidCreated;
+                        // Prune if no ping for 12s OR session older than 30 minutes
+                        if ($msidAge > 12 || $msidTotalAge > 1800) {
                             unset($r['players'][$i]['active_msid']);
                             unset($r['players'][$i]['msid_ping']);
+                            unset($r['players'][$i]['msid_created']);
                         }
+                    }
+                }
+
+                // Server-side timeout enforcement for pending_reveal (15s max)
+                if (!empty($r['pending_reveal'])) {
+                    $revealAge = $now - ($r['pending_reveal']['requested_at'] ?? 0);
+                    if ($revealAge > 15) {
+                        $r['pending_reveal'] = null;
                     }
                 }
 
@@ -303,6 +328,9 @@ class ExamController {
                         }
                         $r['players'][$pidx]['active_msid'] = $msid;
                         $r['players'][$pidx]['msid_ping'] = $now;
+                        if (empty($r['players'][$pidx]['msid_created'])) {
+                            $r['players'][$pidx]['msid_created'] = $now;
+                        }
                     }
                 }
                 if ($r['timer_mode'] === 'countdown' && $r['started_at'] && $r['status'] === 'active') {
@@ -447,6 +475,12 @@ class ExamController {
             $now = time();
             if (($room['paused_until'] ?? 0) > $now) {
                 $error = 'Test is already paused';
+                return false;
+            }
+
+            // Only allow BRB when test is actively running
+            if (($room['status'] ?? '') !== 'active') {
+                $error = 'Test is not active';
                 return false;
             }
 

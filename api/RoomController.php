@@ -53,9 +53,9 @@ class RoomController {
         
         $indexLockPath = OMR_DATA_DIR . '.codes_lock';
         $lockFp = fopen($indexLockPath, 'w+');
+        $playerCodes = [];
         if (flock($lockFp, LOCK_EX)) {
             $codesIndex = loadCodesIndex();
-            $playerCodes = [];
             for ($i = 0; $i < $playerCount; $i++) {
                 $code = generateCode($codesIndex);
                 $playerCodes[$i] = $code;
@@ -65,6 +65,10 @@ class RoomController {
             flock($lockFp, LOCK_UN);
         }
         fclose($lockFp);
+
+        if (empty($playerCodes) || count($playerCodes) !== $playerCount) {
+            jsonOut(['error' => 'Failed to generate player codes. Please retry.'], 500);
+        }
 
         $players = [];
         for ($i = 0; $i < $playerCount; $i++) {
@@ -195,23 +199,24 @@ class RoomController {
 
         if (!$roomId || !$code) jsonOut(['error' => 'Missing params'], 400);
 
+        // Validate player belongs to this room
         $index = loadCodesIndex();
+        if (!isset($index[$code]) || $index[$code]['room_id'] !== $roomId) {
+            jsonOut(['error' => 'Player does not belong to this room'], 403);
+        }
         
         $success = updateRoom($roomId, function(&$room) use ($code, $active, $index, $roomId) {
-            $callerIdx = -1;
-            $callerName = 'Player';
-            if (isset($index[$code])) {
-                $callerIdx = $index[$code]['player_idx'];
-                $callerName = $room['players'][$callerIdx]['name'] ?? 'Player';
-            }
+            $callerIdx = $index[$code]['player_idx'];
+            $callerName = $room['players'][$callerIdx]['name'] ?? 'Player';
 
             if ($active) {
                 $room['call_active'] = [
-                    'caller_idx' => $callerIdx,
+                    'active'      => true,
+                    'caller_idx'  => $callerIdx,
                     'caller_name' => $callerName,
                     'caller_code' => $code,
-                    'call_id' => 'omr-' . $roomId,
-                    'started_at' => time(),
+                    'call_id'     => 'omr-' . $roomId,
+                    'started_at'  => time(),
                 ];
             } else {
                 $room['call_active'] = null;
@@ -257,6 +262,10 @@ class RoomController {
                 continue;
             }
             if (($data['created_at'] ?? 0) < $cutoff) {
+                // Don't cleanup active rooms — players may still be in an exam
+                if (($data['status'] ?? '') === 'active') {
+                    continue;
+                }
                 if (!empty($data['reattempt_active']) && !empty($data['reattempt_expiry'])) {
                     if (time() < $data['reattempt_expiry']) {
                         continue;

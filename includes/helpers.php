@@ -55,9 +55,10 @@ function saveRoom($roomId, $data)
  * Safely updates a room's JSON data using an exclusive file lock to completely prevent race conditions.
  * @param string $roomId The ID of the room
  * @param Closure $callback Function that receives the decoded room array by reference to modify it. Return false to abort save.
+ * @param int $maxRetries Maximum number of lock acquisition attempts (default: 3)
  * @return bool True if successfully updated, false otherwise.
  */
-function updateRoom($roomId, Closure $callback)
+function updateRoom($roomId, Closure $callback, $maxRetries = 3)
 {
     $path = roomPath($roomId);
     if (!file_exists($path)) {
@@ -69,7 +70,22 @@ function updateRoom($roomId, Closure $callback)
         return false;
     }
 
-    if (flock($fp, LOCK_EX)) {
+    // Retry loop for lock acquisition
+    $locked = false;
+    for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
+        if (flock($fp, LOCK_EX | LOCK_NB)) {
+            $locked = true;
+            break;
+        }
+        // Backoff: 50ms, 100ms, 150ms...
+        usleep(50000 * ($attempt + 1));
+    }
+    // Final blocking attempt if non-blocking retries failed
+    if (!$locked) {
+        $locked = flock($fp, LOCK_EX);
+    }
+
+    if ($locked) {
         clearstatcache(true, $path);
         $filesize = filesize($path);
         $raw = '';
@@ -100,6 +116,7 @@ function updateRoom($roomId, Closure $callback)
         return true;
     } else {
         fclose($fp);
+        error_log('[OMR] updateRoom: Failed to acquire lock for room ' . $roomId . ' after ' . $maxRetries . ' retries');
         return false;
     }
 }
@@ -157,17 +174,17 @@ function base64url_encode($data) {
  * - payload: { "user_id": "<id>", "iss": "stream-video", "iat": <now>, "exp": <now+3600> }
  */
 function generateStreamToken($userId) {
-    $now = time();
+    $now = (int) time();
     $header = base64url_encode(json_encode([
         'typ' => 'JWT',
         'alg' => 'HS256'
     ]));
     $payload = base64url_encode(json_encode([
-        'user_id' => $userId,
+        'user_id' => (string) $userId,
         'iss'     => 'stream-video',
         'sub'     => 'user/' . $userId,
         'iat'     => $now,
-        'exp'     => $now + 3600, // 1 hour
+        'exp'     => $now + 86400, // 24 hours
     ]));
     $signature = base64url_encode(
         hash_hmac('sha256', $header . '.' . $payload, STREAM_API_SECRET, true)

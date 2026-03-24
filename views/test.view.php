@@ -597,7 +597,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
   <div class="recent-section" style="max-width:500px;margin-top:2rem;">
     <div class="divider">or join existing</div>
     <div style="display:flex;gap:.75rem;">
-      <input type="text" id="join-code-input" placeholder="Enter 3-digit room code" maxlength="6"
+      <input type="text" id="join-code-input" placeholder="Enter 3-letter code" maxlength="3"
         style="flex:1;text-align:center;font-size:1.1rem;font-family:'JetBrains Mono',monospace;letter-spacing:4px;"
         oninput="this.value=this.value.toUpperCase()">
       <button class="btn-primary" style="width:auto;padding:.75rem 1.5rem;margin-top:0;" onclick="joinByCode()">JOIN</button>

@@ -125,7 +125,7 @@ body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-fa
       <button class="stream-ctrl-btn" id="sc-cam" onclick="StreamCodec.toggleCam()"></button>
       <button class="stream-ctrl-btn" id="sc-speaker" onclick="StreamCodec.toggleSpk()"></button>
       <button class="stream-ctrl-btn" id="sc-call" onclick="StreamCodec.startCall()"></button>
-      <button class="stream-ctrl-btn danger stream-leave hidden" id="sc-leave" onclick="StreamCodec.leaveCall()"></button>
+      <button class="stream-ctrl-btn danger stream-leave hidden" id="sc-leave" onclick="StreamCodec.leaveCall(true)"></button>
     </div>
   </div>
 
@@ -170,14 +170,18 @@ function switchSidebarTool() {}
 function _updateLiveBadge() {}
 function showToast(msg, type) { console.log('[Toast:', type, ']', msg); }
 
-// Simple API wrapper
+// API wrapper — uses JSON body to match api.php requirements
 async function api(payload) {
-  const fd = new FormData();
-  for (const k in payload) fd.append(k, payload[k]);
-  const res = await fetch('api.php', {method: 'POST', body: fd});
-  const text = await res.text();
-  if (text.startsWith('{')) return JSON.parse(text);
-  throw new Error(text);
+  const res = await fetch('api.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `HTTP ${res.status}`);
+  }
+  return res.json();
 }
 
 // ── SYNC ──
@@ -269,9 +273,9 @@ async function sendChat() {
   } catch(e) {}
 }
 
-// Start
+// Start — sync every 2.5s to act as keepalive for msid
 syncRoom();
-syncTimer = setInterval(syncRoom, 2000);
+syncTimer = setInterval(syncRoom, 2500);
 
 </script>
 </body>

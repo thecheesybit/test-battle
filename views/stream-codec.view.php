@@ -167,6 +167,26 @@
 }
 .stream-status.connected { color: var(--ok); }
 .stream-status.connecting { color: var(--warn); }
+.stream-status.error { color: var(--danger); }
+
+/* Error state overlay */
+.stream-error-state {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px; padding: 1.5rem; text-align: center;
+  flex: 1; min-height: 0;
+}
+.stream-error-state .stream-err-icon { font-size: 1.8rem; }
+.stream-error-state .stream-err-title { font-weight: 700; font-size: 0.85rem; color: var(--text); }
+.stream-error-state .stream-err-msg { font-size: 0.72rem; color: var(--muted); line-height: 1.4; }
+.stream-error-state .stream-err-retry {
+  margin-top: 6px; padding: 5px 14px;
+  border-radius: 7px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text);
+  font-size: 0.72rem; cursor: pointer;
+  transition: all 0.15s ease;
+}
+.stream-error-state .stream-err-retry:hover { border-color: var(--p0); color: var(--p0); }
 
 
 </style>
@@ -253,21 +273,34 @@ const StreamCodec = (() => {
     throw lastErr;
   }
 
-  // ── Fetch token from server ──
-  async function _fetchToken() {
-    const resp = await fetch('stream.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'get_token',
-        room_id: _roomId,
-        player_id: _playerCode,
-        player_name: _playerName,
-      })
-    });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    return data;
+  // ── Fetch token from server (with exponential backoff retry) ──
+  async function _fetchToken(retries = 3) {
+    let lastErr = null;
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const resp = await fetch('stream.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'get_token',
+            room_id: _roomId,
+            player_id: _playerCode,
+            player_name: _playerName,
+          })
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        return data;
+      } catch (err) {
+        lastErr = err;
+        console.warn(`[StreamCodec] Token fetch attempt ${attempt + 1}/${retries} failed:`, err.message);
+        if (attempt < retries - 1) {
+          // Exponential backoff: 1s, 2s, 4s
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        }
+      }
+    }
+    throw lastErr || new Error('Token fetch failed after retries');
   }
 
   // ── Notify other players that a call is active ──
@@ -593,8 +626,27 @@ const StreamCodec = (() => {
       }
     } catch (err) {
       console.error('[StreamCodec] joinCall error:', err);
-      _setStatus('Call failed — ' + (err.message || ''), '');
+      _setStatus('Call failed', 'error');
+      _showErrorState('Connection Failed', err.message || 'Could not join the call. Check your network.', () => _joinCall(isInitiator, isViewerOnly));
       if (typeof showToast === 'function') showToast('Call failed: ' + (err.message || err), 'error');
+    }
+  }
+
+  // ── Show error state in the video grid area ──
+  function _showErrorState(title, message, retryFn) {
+    const grid = $('stream-video-grid');
+    if (!grid) return;
+    grid.innerHTML = `
+      <div class="stream-error-state">
+        <div class="stream-err-icon">⚠️</div>
+        <div class="stream-err-title">${title}</div>
+        <div class="stream-err-msg">${message}</div>
+        ${retryFn ? '<button class="stream-err-retry" id="stream-err-retry-btn">Retry</button>' : ''}
+      </div>
+    `;
+    if (retryFn) {
+      const btn = $('stream-err-retry-btn');
+      if (btn) btn.addEventListener('click', () => { grid.innerHTML = ''; retryFn(); });
     }
   }
 
@@ -668,10 +720,16 @@ const StreamCodec = (() => {
   };
 
   /**
-   * leaveCall() — Leave the current call
+   * leaveCall() — Leave the current call (with confirmation)
    */
-  api.leaveCall = async function() {
+  api.leaveCall = async function(skipConfirm = false) {
     if (!_call) return;
+
+    // Confirmation dialog to prevent accidental disconnects
+    if (!skipConfirm && _inCall) {
+      if (!confirm('Leave the video call? You can rejoin later.')) return;
+    }
+
     try { await _call.leave(); } catch(e) { console.warn('[StreamCodec] leave error:', e); }
 
     _clearAllTiles();
@@ -867,18 +925,6 @@ const StreamCodec = (() => {
   };
 
   /**
-   * destroy() — Cleanup
-   */
-  api.destroy = async function() {
-    if (_call) { try { await _call.leave(); } catch(e) {} }
-    if (_client) { try { _client.disconnectUser(); } catch(e) {} }
-    _clearAllTiles();
-    _call = null;
-    _client = null;
-    _inCall = false;
-  };
-
-  /**
    * handleMobileTransfer()
    */
   api.handleMobileTransfer = async function() {
@@ -905,6 +951,69 @@ const StreamCodec = (() => {
       
       // Hide buttons gracefully except settings maybe, but mobile has them
       hide($('sc-mic')); hide($('sc-cam')); hide($('sc-speaker')); hide($('sc-call')); hide($('sc-leave'));
+  };
+
+  /**
+   * reclaimDesktopStream() — Re-initialize and rejoin call after mobile session ends.
+   * Called from room.view.php syncAndUpdate() when active_msid is cleared.
+   */
+  api.reclaimDesktopStream = async function() {
+      console.log('[StreamCodec] Reclaiming desktop stream after mobile session ended');
+      _setStatus('Reclaiming…', 'connecting');
+
+      // Clear the transfer UI
+      const grid = $('stream-video-grid');
+      if (grid) grid.innerHTML = '';
+
+      // Re-show controls
+      show($('sc-mic')); show($('sc-cam')); show($('sc-speaker')); show($('sc-leave'));
+
+      try {
+        // Get a fresh token and create new client
+        const tokenData = await _fetchToken();
+        _apiKey = tokenData.api_key;
+        _client = new _StreamVideoClient({
+          apiKey: _apiKey,
+          token: tokenData.token,
+          user: { id: _userId, name: _playerName },
+        });
+
+        // Rejoin the call
+        _call = _client.call('default', _callId);
+        await _call.join({ create: false });
+        _inCall = true;
+
+        // Re-enable camera and mic
+        try { await _call.camera.enable(); _camOn = true; }
+        catch(e) { _camOn = false; console.warn('[StreamCodec] Camera unavailable on reclaim:', e.message); }
+
+        try { await _call.microphone.enable(); _micOn = true; }
+        catch(e) { _micOn = false; console.warn('[StreamCodec] Mic unavailable on reclaim:', e.message); }
+
+        _setupParticipantWatcher();
+        _updateControls();
+        _setStatus('In call', 'connected');
+
+        if (typeof showToast === 'function') showToast('📞 Desktop stream reclaimed', 'ok');
+      } catch (err) {
+        console.error('[StreamCodec] reclaimDesktopStream error:', err);
+        _setStatus('Reclaim failed', 'error');
+        _showErrorState('Reclaim Failed', 'Could not rejoin the call: ' + (err.message || ''), () => api.reclaimDesktopStream());
+        if (typeof showToast === 'function') showToast('Failed to reclaim stream: ' + (err.message || err), 'error');
+      }
+  };
+
+  /**
+   * destroy() — Cleanup
+   */
+  api.destroy = async function() {
+    if (_bannerTimeout) { clearTimeout(_bannerTimeout); _bannerTimeout = null; }
+    if (_call) { try { await _call.leave(); } catch(e) {} }
+    if (_client) { try { _client.disconnectUser(); } catch(e) {} }
+    _clearAllTiles();
+    _call = null;
+    _client = null;
+    _inCall = false;
   };
 
   // Expose globally

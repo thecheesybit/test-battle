@@ -86,10 +86,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);font-s
 .lobby-msg{margin-top:.75rem;font-size:.85rem;padding:8px 12px;border-radius:8px;display:none;}
 .lobby-msg.error{background:rgba(255,71,87,.1);border:1px solid rgba(255,71,87,.4);color:#ff6b7a;display:block;}
 .lobby-msg.ok{background:rgba(79,255,176,.1);border:1px solid rgba(79,255,176,.4);color:var(--ok);display:block;}
-.btn-join:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(91,127,255,0.4);}
-.lobby-msg{margin-top:.75rem;font-size:.85rem;padding:8px 12px;border-radius:8px;display:none;}
-.lobby-msg.error{background:rgba(255,71,87,.1);border:1px solid rgba(255,71,87,.4);color:#ff6b7a;display:block;}
-.lobby-msg.ok{background:rgba(79,255,176,.1);border:1px solid rgba(79,255,176,.4);color:var(--ok);display:block;}
+
 .back-link{display:block;margin-top:1.25rem;color:var(--muted);font-size:.8rem;text-decoration:none;}
 .back-link:hover{color:var(--text);}
 
@@ -2533,10 +2530,79 @@ function factorial(n) {
   return r;
 }
 
+// ── Safe Math Expression Evaluator ──
+// Recursive-descent parser that only allows numbers, operators, parentheses.
+// Blocks arbitrary code execution (unlike new Function()).
+function safeCalcEval(expr) {
+  let pos = 0;
+  const str = expr.replace(/\s+/g, '');
+
+  function peek() { return str[pos]; }
+  function consume(ch) {
+    if (str[pos] === ch) { pos++; return true; }
+    return false;
+  }
+
+  // expr = term (('+' | '-') term)*
+  function parseExpr() {
+    let val = parseTerm();
+    while (true) {
+      if (consume('+'))      val += parseTerm();
+      else if (consume('-')) val -= parseTerm();
+      else break;
+    }
+    return val;
+  }
+
+  // term = power (('*' | '/') power)*
+  function parseTerm() {
+    let val = parsePower();
+    while (true) {
+      if (consume('*') && consume('*')) { val = Math.pow(val, parsePower()); }
+      else if (str[pos - 1] === '*') { val *= parsePower(); }
+      else if (consume('/')) { val /= parsePower(); }
+      else break;
+    }
+    return val;
+  }
+
+  // power = unary
+  function parsePower() {
+    return parseUnary();
+  }
+
+  // unary = ('+' | '-')? atom
+  function parseUnary() {
+    if (consume('-')) return -parseAtom();
+    if (consume('+')) return parseAtom();
+    return parseAtom();
+  }
+
+  // atom = number | '(' expr ')'
+  function parseAtom() {
+    // Parenthesized expression
+    if (consume('(')) {
+      const val = parseExpr();
+      consume(')'); // tolerant of missing closing paren
+      return val;
+    }
+
+    // Number (including decimals)
+    const start = pos;
+    while (pos < str.length && (/[0-9.]/).test(str[pos])) pos++;
+    if (pos === start) return NaN;
+    return parseFloat(str.substring(start, pos));
+  }
+
+  const result = parseExpr();
+  if (pos < str.length) return NaN; // Unparsed trailing characters = invalid
+  return result;
+}
+
 function calcFn(fn) {
   let val;
   try {
-    val = new Function('return (' + calcExpr + ')')();
+    val = safeCalcEval(calcExpr);
   } catch(e) {
     val = NaN;
   }
@@ -2574,7 +2640,8 @@ function calcEval() {
   if (!calcExpr) return;
   try {
     const expr = calcExpr;
-    const result = new Function('return (' + expr + ')')();
+    const result = safeCalcEval(expr);
+    if (isNaN(result)) throw new Error('Invalid expression');
     document.getElementById('calc-history').textContent = expr + ' =';
     calcExpr = String(result);
     document.getElementById('calc-result').textContent = calcExpr;
@@ -2817,8 +2884,8 @@ function updateOnlineDots() {
   const dots = document.getElementById('online-dots');
   dots.innerHTML = room.players.map((p, i) => {
     const online = room.online?.[i];
-    return `<div class="online-dot" style="background:var(--${PLAYER_COLORS[i]})" 
-      class="${online?'on':''}" title="${escHtml(p.name)} ${online?'online':'offline'}"></div>`;
+    return `<div class="online-dot ${online?'on':''}" style="background:var(--${PLAYER_COLORS[i]})" 
+      title="${escHtml(p.name)} ${online?'online':'offline'}"></div>`;
   }).join('');
 }
 
@@ -3522,13 +3589,26 @@ function escHtml(s) {
 }
 
 async function api(payload) {
-  const r = await fetch(API, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(payload)
-  });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  try {
+    const r = await fetch(API, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    const data = await r.json();
+    if (!r.ok) {
+      throw new Error(data.error || 'HTTP ' + r.status);
+    }
+    return data;
+  } catch(e) {
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') throw new Error('Request timed out');
+    throw e;
+  }
 }
 
 function launchConfetti() {

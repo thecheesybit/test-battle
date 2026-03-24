@@ -57,20 +57,17 @@ class ServiceDiscovery {
     }
 
     public function discover($input) {
-        // Return external representation of available API endpoints
-        $endpoints = [];
-        foreach (self::$registry as $action => $handler) {
-            $endpoints[$action] = [
-                'service' => $handler[0],
-                'method' => 'POST',
-                'url' => 'api.php?action=' . $action
-            ];
-        }
+        // Return external representation — hide internal class/method details
+        $actions = array_keys(self::$registry);
+        // Remove discover itself from the list
+        $actions = array_values(array_filter($actions, fn($a) => $a !== 'discover'));
         jsonOut([
             'success' => true,
-            'description' => 'MiniShiksha OMR Microservice Architecture',
-            'version' => '2.0',
-            'endpoints' => $endpoints
+            'description' => 'MiniShiksha OMR API',
+            'version' => '3.0',
+            'actions' => $actions,
+            'method'  => 'POST',
+            'endpoint' => 'api.php',
         ]);
     }
 }

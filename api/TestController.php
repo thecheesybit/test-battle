@@ -26,9 +26,17 @@ class TestController {
             jsonOut(['error' => 'Valid JSON with "responses" object required'], 400);
         }
 
+        // Limit JSON data size to prevent abuse (1MB max when re-encoded)
+        $encoded = json_encode($jsonData, JSON_UNESCAPED_UNICODE);
+        if (strlen($encoded) > 1048576) {
+            jsonOut(['error' => 'Test data too large (max 1MB)'], 400);
+        }
+
         $path = testPath($testName);
-        // Tests are updated infrequently by a single admin, simple write is fine
-        file_put_contents($path, json_encode($jsonData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        // Atomic write: write to temp then rename
+        $tmp = $path . '.tmp';
+        file_put_contents($tmp, json_encode($jsonData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        rename($tmp, $path);
 
         jsonOut([
             'success' => true,
@@ -104,6 +112,19 @@ class TestController {
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
         if ($ext !== 'pdf') jsonOut(['error' => 'Only PDF files are allowed'], 400);
 
+        // Validate file size (20MB max)
+        if ($file['size'] > 20 * 1024 * 1024) {
+            jsonOut(['error' => 'PDF file too large (max 20MB)'], 400);
+        }
+
+        // Validate MIME type
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        if ($mime !== 'application/pdf') {
+            jsonOut(['error' => 'Invalid file type. Only PDF files are accepted.'], 400);
+        }
+
         $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $testName);
         $pdfFilename = $safeName . '.pdf';
         $destPath = OMR_DATA_DIR . $pdfFilename;
@@ -140,6 +161,19 @@ class TestController {
         $file = $_FILES['pdf_file'];
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
         if ($ext !== 'pdf') jsonOut(['error' => 'Only PDF files are allowed'], 400);
+
+        // Validate file size (20MB max)
+        if ($file['size'] > 20 * 1024 * 1024) {
+            jsonOut(['error' => 'Solution PDF too large (max 20MB)'], 400);
+        }
+
+        // Validate MIME type
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        if ($mime !== 'application/pdf') {
+            jsonOut(['error' => 'Invalid file type. Only PDF files are accepted.'], 400);
+        }
 
         $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $testName);
         $pdfFilename = $safeName . '_solution.pdf';
@@ -178,8 +212,17 @@ class TestController {
         $data = json_decode(file_get_contents($testFile), true);
         if (!$data) jsonOut(['error' => 'Failed to read test data'], 500);
 
+        // Validate page_map structure
+        foreach ($pageMap as $pageNum => $mapping) {
+            if (!is_array($mapping)) {
+                jsonOut(['error' => 'Invalid page_map: each entry must be an object'], 400);
+            }
+        }
+
         $data['page_map'] = $pageMap;
-        file_put_contents($testFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        $tmp = $testFile . '.tmp';
+        file_put_contents($tmp, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        rename($tmp, $testFile);
 
         jsonOut([
             'success' => true,
