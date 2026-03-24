@@ -7,7 +7,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MiniShiksha — OMR Battle Room</title>
+<title>MiniShiksha — OMR Battle Room v3.0.0</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -481,7 +481,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 
 
   <div class="footer">
-    <a href="https://minishiksha.in">← Back to MiniShiksha</a> &nbsp;·&nbsp; OMR Battle System v2.1.0
+    <a href="https://minishiksha.in">← Back to MiniShiksha</a> &nbsp;·&nbsp; OMR Battle System v3.0.0
   </div>
 </div>
 
