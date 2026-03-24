@@ -416,6 +416,132 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
   font-size:.72rem;color:var(--ok);font-family:'JetBrains Mono',monospace;
   padding:.25rem 0;
 }
+/* ── UI REVAMP TEST TILES ── */
+.test-category-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.test-category-title::after {
+  content: '';
+  flex: 1;
+  height: 1.5px;
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.test-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.test-tile {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.2,0.8,0.2,1);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.test-tile::before {
+  content:''; position:absolute; inset:0;
+  background: linear-gradient(135deg, rgba(255,95,126,0.1), transparent);
+  opacity: 0; transition: var(--tr);
+}
+.test-tile:hover {
+  border-color: var(--accent2);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(255, 95, 126, 0.12);
+}
+.test-tile:hover::before { opacity: 1; }
+
+.test-tile.selected {
+  border-color: var(--accent2);
+  background: rgba(255, 95, 126, 0.08);
+  box-shadow: 0 0 0 2px rgba(255, 95, 126, 0.15);
+}
+
+.test-tile-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  position: relative; z-index: 1;
+}
+.test-tile-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+.test-tile-info {
+  flex: 1;
+  min-width: 0;
+}
+.test-tile-name {
+  font-size: .95rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: .25rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.test-tile-meta {
+  font-size: .75rem;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.test-tile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  position: relative; z-index: 1;
+}
+.tile-badge {
+  font-size: .65rem;
+  padding: 4px 10px;
+  border-radius: 50px;
+  border: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--surface);
+  white-space: nowrap;
+}
+.tile-badge.tag-gs { border-color: #5b7fff; color: #5b7fff; background: rgba(91,127,255,0.08); }
+.tile-badge.tag-csat { border-color: #ffe156; color: #ffe156; background: rgba(255,225,86,0.08); }
+
+.tile-badge.action { cursor: pointer; transition: var(--tr); color: var(--muted); }
+.tile-badge.action:hover { background: var(--border); color: var(--text); }
+.tile-badge.action.pdf-add { border-color: var(--ok); color: var(--ok); }
+.tile-badge.action.pdf-edit { border-color: var(--warn); color: var(--warn); }
+.tile-badge.action.sol-add { border-color: var(--accent3); color: var(--accent3); }
+.tile-badge.action.sol-edit { border-color: var(--warn); color: var(--warn); }
+.tile-badge.action.map-add { border-color: var(--accent); color: var(--accent); }
+.tile-badge.action.map-edit { border-color: var(--muted); color: var(--muted); }
 </style>
 </head>
 <body>
@@ -567,6 +693,14 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
         <div class="form-group" style="margin-bottom:.75rem;">
           <label>Test Name</label>
           <input type="text" id="new-test-name" placeholder="e.g. CSAT_Mock_9979">
+        </div>
+        <div class="form-group" style="margin-bottom:.75rem;">
+          <label>Test Tag / Category</label>
+          <select id="new-test-tag">
+            <option value="General">General / Uncategorized</option>
+            <option value="GS">General Studies (GS)</option>
+            <option value="CSAT">CSAT</option>
+          </select>
         </div>
         <div class="form-group" style="margin-bottom:.75rem;">
           <label>Answer Key JSON</label>
@@ -736,46 +870,78 @@ function renderTestList(tests) {
     return;
   }
 
-  container.innerHTML = `<div class="test-list" id="test-list">
-    ${tests.map((t, i) => {
+  // Segregate by tags
+  const groups = {
+    'GS': [],
+    'CSAT': [],
+    'General': []
+  };
+
+  tests.forEach((t, i) => {
+    t._idx = i; // Keep original index for selection mapping
+    let tag = (t.test_info && t.test_info.tag) ? t.test_info.tag : 'General';
+    if (!groups[tag]) groups[tag] = [];
+    groups[tag].push(t);
+  });
+
+  let html = '';
+  const renderGroup = (title, arr) => {
+    if (arr.length === 0) return;
+    html += `<div class="test-category-title">${title} <span style="font-size:.8rem;color:var(--muted);font-weight:600;margin-left:4px;">(${arr.length})</span></div>`;
+    html += `<div class="test-tile-grid">`;
+    arr.forEach(t => {
+      const idx = t._idx;
       const date = new Date(t.created_at * 1000);
       const dateStr = date.toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'});
       const isSelected = selectedTest && selectedTest.name === t.name;
-      const pdfBadge = t.has_pdf ? '<span style="margin-left:4px;font-size:.6rem;padding:2px 5px;border-radius:50px;border:1px solid var(--ok);color:var(--ok);font-family:\'JetBrains Mono\',monospace;">📄PDF</span>' : '';
-      const solBadge = t.has_solution_pdf ? '<span style="margin-left:2px;font-size:.6rem;padding:2px 5px;border-radius:50px;border:1px solid var(--accent3);color:var(--accent3);font-family:\'JetBrains Mono\',monospace;">📖SOL</span>' : '';
-      const mapBadge = t.has_page_map ? '<span style="margin-left:2px;font-size:.6rem;padding:2px 5px;border-radius:50px;border:1px solid var(--accent);color:var(--accent);font-family:\'JetBrains Mono\',monospace;">📐MAP</span>' : '';
-
-      // Action buttons
+      
+      const tagClass = (t.test_info && t.test_info.tag === 'GS') ? 'tag-gs' : 
+                       ((t.test_info && t.test_info.tag === 'CSAT') ? 'tag-csat' : '');
+      const tagLabel = (t.test_info && t.test_info.tag) ? t.test_info.tag : 'General';
+      const tagBadge = `<span class="tile-badge ${tagClass}">${escHtml(tagLabel)}</span>`;
+      
       let actionBtns = '';
       if (!t.has_pdf) {
-        actionBtns += `<button class="test-list-badge" style="cursor:pointer;border-color:var(--ok);color:var(--ok);font-size:.55rem;" onclick="event.stopPropagation();uploadPdfForTest('${escHtml(t.name)}')" title="Attach Question PDF">+ PDF</button>`;
+        actionBtns += `<span class="tile-badge action pdf-add" onclick="event.stopPropagation();uploadPdfForTest('${escHtml(t.name)}')" title="Attach Question PDF">+ PDF</span>`;
       } else {
-        actionBtns += `<button class="test-list-badge" style="cursor:pointer;border-color:var(--warn);color:var(--warn);font-size:.55rem;" onclick="event.stopPropagation();uploadPdfForTest('${escHtml(t.name)}')" title="Replace Question PDF">✎ PDF</button>`;
+        actionBtns += `<span class="tile-badge action pdf-edit" onclick="event.stopPropagation();uploadPdfForTest('${escHtml(t.name)}')" title="Replace Question PDF">✎ PDF</span>`;
       }
       if (!t.has_solution_pdf) {
-        actionBtns += `<button class="test-list-badge" style="cursor:pointer;border-color:var(--accent3);color:var(--accent3);font-size:.55rem;" onclick="event.stopPropagation();uploadSolutionPdfForTest('${escHtml(t.name)}')" title="Attach Solution PDF">+ SOL</button>`;
+        actionBtns += `<span class="tile-badge action sol-add" onclick="event.stopPropagation();uploadSolutionPdfForTest('${escHtml(t.name)}')" title="Attach Solution PDF">+ SOL</span>`;
       } else {
-        actionBtns += `<button class="test-list-badge" style="cursor:pointer;border-color:var(--warn);color:var(--warn);font-size:.55rem;" onclick="event.stopPropagation();uploadSolutionPdfForTest('${escHtml(t.name)}')" title="Replace Solution PDF">✎ SOL</button>`;
+        actionBtns += `<span class="tile-badge action sol-edit" onclick="event.stopPropagation();uploadSolutionPdfForTest('${escHtml(t.name)}')" title="Replace Solution PDF">✎ SOL</span>`;
       }
       if (t.has_pdf && !t.has_page_map) {
-        actionBtns += `<button class="test-list-badge" style="cursor:pointer;border-color:var(--accent);color:var(--accent);font-size:.55rem;" onclick="event.stopPropagation();openMapModal('${escHtml(t.name)}',${t.q_count})" title="Map Questions to Pages">📐 MAP</button>`;
+        actionBtns += `<span class="tile-badge action map-add" onclick="event.stopPropagation();openMapModal('${escHtml(t.name)}',${t.q_count})" title="Map Questions to Pages">📐 MAP</span>`;
       } else if (t.has_page_map) {
-        actionBtns += `<button class="test-list-badge" style="cursor:pointer;border-color:var(--muted);color:var(--muted);font-size:.55rem;" onclick="event.stopPropagation();openMapModal('${escHtml(t.name)}',${t.q_count})" title="Edit Mapping">✏ MAP</button>`;
+        actionBtns += `<span class="tile-badge action map-edit" onclick="event.stopPropagation();openMapModal('${escHtml(t.name)}',${t.q_count})" title="Edit Mapping">✏ MAP</span>`;
       }
 
-      return `<div class="test-list-item ${isSelected?'selected':''}" onclick="selectTestFromList(${i})" id="test-item-${i}">
-        <div class="test-list-icon">${t.has_pdf ? '📄' : '📝'}</div>
-        <div class="test-list-info">
-          <div class="test-list-name">${escHtml(t.name)}${pdfBadge}${solBadge}${mapBadge}</div>
-          <div class="test-list-meta">${t.q_count} questions · ${dateStr}</div>
+      html += `
+        <div class="test-tile ${isSelected?'selected':''}" onclick="selectTestFromList(${idx})" id="test-item-${idx}">
+          <div class="test-tile-header">
+            <div class="test-tile-icon">${t.has_pdf ? '📄' : '📝'}</div>
+            <div class="test-tile-info">
+              <div class="test-tile-name">${escHtml(t.name)}</div>
+              <div class="test-tile-meta">${t.q_count} Qs · ${dateStr}</div>
+            </div>
+          </div>
+          <div class="test-tile-badges">
+            ${tagBadge}
+            <div style="flex:1"></div>
+            ${actionBtns}
+          </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;">
-          <div class="test-list-badge">${t.q_count}Q</div>
-          ${actionBtns}
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
+      `;
+    });
+    html += `</div>`;
+  };
+
+  renderGroup('🌟 General Studies (GS)', groups['GS']);
+  renderGroup('📊 CSAT', groups['CSAT']);
+  renderGroup('📁 General / Uncategorized', groups['General']);
+
+  container.innerHTML = html;
 }
 
 function selectTestFromList(idx) {
@@ -838,10 +1004,15 @@ async function saveNewTest() {
   const name = document.getElementById('new-test-name').value.trim();
   const raw  = document.getElementById('new-test-json').value.trim();
   const pdfInput = document.getElementById('new-test-pdf');
+  const tagStr = document.getElementById('new-test-tag').value;
+
   if (!name) { showMsg('new-test-error', 'Please enter a test name.', 'error'); return; }
   const v = validateJSON(raw);
   if (!v.ok) { showMsg('new-test-error', 'Invalid JSON: ' + v.error, 'error'); return; }
   hideMsg('new-test-error');
+
+  if (!v.data.test_info) v.data.test_info = {};
+  v.data.test_info.tag = tagStr;
 
   document.getElementById('save-test-spinner').classList.add('show');
   document.getElementById('save-test-btn-text').textContent = 'Saving...';
