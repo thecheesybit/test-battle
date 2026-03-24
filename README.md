@@ -2,31 +2,45 @@
 
 OMR Battle Room is a real-time, multiplayer test-taking application built on a vanilla PHP stack. It allows candidates to participate in simultaneous OMR code-driven sessions with live streaming features, collaborative chat, and synchronized question progression.
 
-## 🚀 Version 3.0.0 Updates
+## 🏗️ Project Architecture & How It Works
 
-This version brings a massive architectural overhaul, focusing on robust I/O, microservice scalability, and enhanced real-time interaction.
+The project is designed to be lightweight, fast, and entirely file-driven (no external SQL database required), making it incredibly easy to deploy on any standard PHP hosting environment (like inside an existing WordPress structure).
 
-### 1. Architectural Refactoring & Microservices
-The backend has been modularized away from a monolithic `omr-api.php` file into scoped controllers.
-- **Service Discovery** (`api/ServiceDiscovery.php`): Dynamically resolves routes, acting as an internal registry for the application.
-- **Microservice Controllers**: Logic is split strictly by domain context ensuring high cohesion:
-  - `RoomController`: Room creation, state polling, cleanup.
-  - `PlayerController`: Joining sessions and answering locks.
-  - `TestController`: Managing paper JSON uploads and mappings.
-  - `ExamController`: State synchronisation and payload validation.
-- **Robust File-Locking (flock)**: Solved critical data corruption caused by race conditions during simultaneous JSON writes under heavy polling. The new `updateRoom()` uses exclusive locking logic (`LOCK_EX`).
-- **Synchronisation Optimization**: Heavy disk I/O reduced dramatically by limiting online polling writes to exactly 10-second intervals or forced state changes.
+### How It Works
+1. **Host Server (Vanilla PHP):** The backend serves HTML/JS via plain PHP views and acts as a RESTful JSON API.
+2. **File-based I/O Engine:** Room state, chat messages, and player answers are stored in active JSON flat-files inside `wp-content/omr-data/`.
+3. **Polling Synchronisation:** The frontend clients perform short-polling (`action=sync`) to fetch the latest JSON state and seamlessly update the DOM reactively.
+4. **GetStream.io Integration:** We offload server-straining video and voice communication directly to GetStream.io's robust WebRTC infrastructure. The PHP backend orchestrates the connection, but the actual video traffic is peer-to-peer/SFU based.
 
-### 2. Stream Video Integration
-Integrated **GetStream.io Video & Voice SDK** right into the room interface.
-- Includes granular controls for Camera, Microphone, and Speaker toggling directly from the `stream-codec.view.php`.
-- Dynamic ringing sound alerts (`SFX`) built natively via Web Audio API to signal incoming calls without extra file payloads.
-- **Mobile Transfer (1:1 enforced)**: Candidates can instantly cast their video/mic feed onto their phone via a dynamically generated QR Code. 
-- *Strict 1:1 Security*: To prevent multi-device cheating or connection overload, generating a new QR Code mints a fresh Mobile Session ID (`msid`). If an older instance continues to poll, the backend forcefully disconnects the outdated devices.
+### Component Structure
+- `test.php`: The primary dashboard index. Users can create a Room or load existing tests.
+- `room.php`: The main Battle arena. Houses the OMR bubbling sheet, the PDF viewer, the Live Chat, and the Video Grid.
+- `mobile.php`: A barebones client specifically optimized for casting a user's camera to the main session.
+- `api/`: Houses the backend microservices.
+  - `ServiceDiscovery.php`: A dynamic router that maps API requests to specific controllers (`?action=sync` -> `ExamController::sync`).
+  - `RoomController.php`, `ExamController.php`, `TestController.php`, `PlayerController.php`: Highly cohesive controllers handling logic for their respective domains.
+- `includes/helpers.php`: Core utility methods, including the critical `updateRoom()` method that utilizes `flock(LOCK_EX)` to ensure data integrity during parallel JSON file modifications.
 
-### 3. Progressive Frontend Enhancements
-- Unified all entry points into `test.php`, `room.php`, and `mobile.php` for cleaner URL resolution while perfectly avoiding WordPress's core `index.php` clashes.
-- Refined dark UI, mobile-responsive grids, and unified styling architecture.
+---
+
+## 🗺️ Version History & Roadmap
+
+### v1.0.0 - The Monolith
+- **Core Engine:** Basic file-polling OMR structure established for test sharing.
+- **Monolithic API:** A single massive `omr-api.php` file handled all routing logic using a giant un-scoped switch statement.
+- **Basic UI:** Static HTML interface for test taking with minimal interactive features. 
+
+### v2.0.0 - The Collaborative Leap
+- **Split-Screen PDF Viewer:** Added the ability to side-load a question paper PDF alongside the bubbling sheet for a tightly unified test-taking experience.
+- **Live Chat & BRB:** Introduced a synchronised live chat panel and a "Be Right Back" feature to globally pause the test countdown.
+- **Feature Enhancements:** Custom timers (Stopwatch / Countdown), reveal constraints (majority voting to reveal correct answers), and individual locked-question states for re-attempts.
+
+### v3.0.0 - Microservices & Stream Video (Current Release)
+- **Microservices Refactoring:** Completely dismantled the monolithic API script into strictly-scoped controllers routed by `ServiceDiscovery.php`.
+- **Robust Concurrent I/O:** Added exclusive OS-level file locking (`flock`) to prevent JSON data truncation/corruption when dozens of fast-polling clients interact simultaneously. Write overhead was reduced drastically.
+- **Stream Video SDK Integration:** Added WebRTC Video and Voice calling seamlessly bounded into `room.php`. Includes Web Audio API synthesized ringing alerts.
+- **Mobile Device Transfer:** Allowed users to scan a dynamically generated QR code and immediately hand off their camera/mic to their smartphone. Prevented device-spam via a strict 1-to-1 Mobile Session ID (`msid`) protocol that actively terminates superseded sessions.
+- **Sanitization:** Implemented deep filesystem normalization and structural renaming to avoid WordPress-core clashes (`dashboard` vs `index`).
 
 ---
 
