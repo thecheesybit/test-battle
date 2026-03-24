@@ -20,6 +20,7 @@ class ServiceDiscovery {
         'check_test'          => ['TestController', 'checkTest'],
         'save_test'           => ['TestController', 'saveTest'],
         'list_tests'          => ['TestController', 'listTests'],
+        'update_test_tag'     => ['TestController', 'updateTestTag'],
         'upload_pdf'          => ['TestController', 'uploadPdf'],
         'upload_solution_pdf' => ['TestController', 'uploadSolutionPdf'],
         'save_page_map'       => ['TestController', 'savePageMap'],

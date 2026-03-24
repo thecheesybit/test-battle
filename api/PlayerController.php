@@ -98,9 +98,7 @@ class PlayerController {
         if (!isset($index[$code])) jsonOut(['error' => 'Invalid code'], 400);
         $pidx = $index[$code]['player_idx'];
 
-        $forceEnd = !empty($input['force_end']);
-
-        $success = updateRoom($roomId, function(&$room) use ($pidx, $forceEnd) {
+        $success = updateRoom($roomId, function(&$room) use ($pidx) {
             $room['players'][$pidx]['submitted'] = true;
             $allDone = true;
             foreach ($room['players'] as $p) {
@@ -109,14 +107,9 @@ class PlayerController {
                     break;
                 }
             }
-            if ($allDone || $forceEnd) {
+            if ($allDone) {
                 $room['status'] = 'finished';
                 $room['ended_at'] = time();
-                if ($forceEnd) {
-                    foreach ($room['players'] as $i => $p) {
-                        $room['players'][$i]['submitted'] = true;
-                    }
-                }
             }
             return true;
         });

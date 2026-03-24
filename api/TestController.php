@@ -66,6 +66,32 @@ class TestController {
         jsonOut(['tests' => $tests]);
     }
 
+    public function updateTestTag($input) {
+        $testName = trim($input['test_name'] ?? '');
+        $newTag = trim($input['new_tag'] ?? '');
+
+        if (!$testName || !$newTag) jsonOut(['error' => 'Test name and new tag required'], 400);
+
+        $testFile = testPath($testName);
+        if (!file_exists($testFile)) jsonOut(['error' => 'Test not found'], 404);
+
+        $data = json_decode(file_get_contents($testFile), true);
+        if (!$data) jsonOut(['error' => 'Failed to read test data'], 500);
+
+        if (!isset($data['test_info'])) {
+            $data['test_info'] = [];
+        }
+        $data['test_info']['tag'] = $newTag;
+        
+        file_put_contents($testFile, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+        jsonOut([
+            'success' => true,
+            'test_name' => $testName,
+            'new_tag' => $newTag
+        ]);
+    }
+
     public function uploadPdf($input) {
         $testName = trim($input['test_name'] ?? '');
         if (!$testName) jsonOut(['error' => 'Test name required'], 400);

@@ -899,7 +899,7 @@ function renderTestList(tests) {
       const tagClass = (t.test_info && t.test_info.tag === 'GS') ? 'tag-gs' : 
                        ((t.test_info && t.test_info.tag === 'CSAT') ? 'tag-csat' : '');
       const tagLabel = (t.test_info && t.test_info.tag) ? t.test_info.tag : 'General';
-      const tagBadge = `<span class="tile-badge ${tagClass}">${escHtml(tagLabel)}</span>`;
+      const tagBadge = `<span class="tile-badge ${tagClass}" style="cursor:pointer;" onclick="event.stopPropagation(); editTestTag('${escHtml(t.name)}', '${escHtml(tagLabel)}')" title="Change Tag">${escHtml(tagLabel)} ✎</span>`;
       
       let actionBtns = '';
       if (!t.has_pdf) {
@@ -1574,6 +1574,28 @@ async function startReattempt(roomId, code) {
     document.getElementById('loading-overlay').classList.remove('show');
     alert("Network error. Please try again.");
   }
+}
+
+async function editTestTag(testName, currentTag) {
+  let newTag = prompt(`Current tag: ${currentTag}\nEnter new tag (e.g. GS, CSAT, General):`, currentTag);
+  if (newTag === null) return;
+  newTag = newTag.trim();
+  if (!newTag) newTag = 'General';
+  
+  try {
+    const res = await fetch('api.php', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ action: 'update_test_tag', test_name: testName, new_tag: newTag })
+    });
+    const d = await res.json();
+    if (d.success) {
+      // showMsg doesn't work for the main list, but we can just re-render
+      fetchAndRenderTests();
+    } else {
+      alert('❌ Update failed: ' + d.error);
+    }
+  } catch(e) { alert('❌ Network error'); }
 }
 
 </script>
