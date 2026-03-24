@@ -938,9 +938,18 @@ function renderTestList(tests) {
     html += `</div>`;
   };
 
-  renderGroup('🌟 General Studies (GS)', groups['GS']);
-  renderGroup('📊 CSAT', groups['CSAT']);
-  renderGroup('📁 General / Uncategorized', groups['General']);
+  renderGroup('🌟 General Studies (GS)', groups['GS'] || []);
+  renderGroup('📊 CSAT', groups['CSAT'] || []);
+  
+  // Render custom tags
+  const stdKeys = ['GS', 'CSAT', 'General'];
+  Object.keys(groups).forEach(key => {
+    if (!stdKeys.includes(key) && groups[key] && groups[key].length > 0) {
+      renderGroup(`📌 ${escHtml(key)}`, groups[key]);
+    }
+  });
+
+  renderGroup('📁 General / Uncategorized', groups['General'] || []);
 
   container.innerHTML = html;
 }
@@ -1581,6 +1590,12 @@ async function editTestTag(testName, currentTag) {
   if (newTag === null) return;
   newTag = newTag.trim();
   if (!newTag) newTag = 'General';
+  
+  // Standardize common cases
+  let upper = newTag.toUpperCase();
+  if (upper === 'GS' || upper === 'CSAT' || upper === 'GENERAL') {
+    newTag = upper === 'GENERAL' ? 'General' : upper;
+  }
   
   try {
     const res = await fetch('api.php', {
