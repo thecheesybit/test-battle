@@ -280,6 +280,18 @@ class ExamController {
 
         if ($needsWrite) {
             updateRoom($roomId, function(&$r) use ($pidx, $sessionId, $msid, $now, $claimMsid) {
+                
+                // Active garbage collection across the board for dropped mobile handovers
+                foreach ($r['players'] as $i => $p) {
+                    if (!empty($p['active_msid']) && isset($p['msid_ping'])) {
+                        // Mobile syncRoom() runs every 2.5s. Missing 5 pings = Mobile died
+                        if ($now - $p['msid_ping'] > 12) {
+                            unset($r['players'][$i]['active_msid']);
+                            unset($r['players'][$i]['msid_ping']);
+                        }
+                    }
+                }
+
                 if ($pidx >= 0 && isset($r['players'][$pidx])) {
                     $r['players'][$pidx]['online_at'] = $now;
                     if ($sessionId) {
@@ -290,6 +302,7 @@ class ExamController {
                             return false; // Error handled above before write
                         }
                         $r['players'][$pidx]['active_msid'] = $msid;
+                        $r['players'][$pidx]['msid_ping'] = $now;
                     }
                 }
                 if ($r['timer_mode'] === 'countdown' && $r['started_at'] && $r['status'] === 'active') {

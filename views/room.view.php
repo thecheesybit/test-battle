@@ -2763,13 +2763,19 @@ async function syncAndUpdate() {
   if (typeof StreamCodec !== 'undefined' && StreamCodec._checkCallState) {
     StreamCodec._checkCallState(room.call_active);
 
-    // Auto-handover (check if my local active_msid was set)
+    // Auto-handover and Reclaim (Vice Versa Logic)
     if (state.myIdx >= 0 && room.players[state.myIdx]) {
         const p = room.players[state.myIdx];
         if (p.active_msid && !window._mobileTransferActive) {
             window._mobileTransferActive = true;
-            if (StreamCodec.handleMobileTransfer) {
+            if (typeof StreamCodec !== 'undefined' && StreamCodec.handleMobileTransfer) {
                 StreamCodec.handleMobileTransfer();
+            }
+        } else if (!p.active_msid && window._mobileTransferActive) {
+            // Mobile session expired, closed, or pruned by server
+            window._mobileTransferActive = false;
+            if (typeof StreamCodec !== 'undefined' && StreamCodec.reclaimDesktopStream) {
+                StreamCodec.reclaimDesktopStream();
             }
         }
     }
