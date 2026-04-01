@@ -306,15 +306,11 @@ const StreamCodec = (() => {
   // ── Notify other players that a call is active ──
   async function _setCallActive(active) {
     try {
-      await fetch('api.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update_call_state',
-          room_id: _roomId,
-          player_id: _playerCode,
-          active: active,
-        })
+      await api({
+        action: 'update_call_state',
+        room_id: _roomId,
+        player_id: _playerCode,
+        active: active,
       });
     } catch(e) { console.warn('[StreamCodec] setCallActive error:', e); }
   }
@@ -839,57 +835,11 @@ const StreamCodec = (() => {
     }, 30000);
   };
 
-  /**
-   * showTransferModal()
-   */
+  // Mobile transfer removed — mobile.php no longer exists
   api.showTransferModal = function() {
-    let modal = document.getElementById('sc-transfer-modal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'sc-transfer-modal';
-      modal.className = 'modal-overlay';
-      modal.innerHTML = `
-        <div class="modal" style="max-width:320px;text-align:center;">
-          <div class="modal-title">Transfer to Mobile</div>
-          <div class="modal-sub">Scan to switch your camera and mic to your phone</div>
-          <div style="background:#fff;padding:10px;border-radius:12px;display:inline-block;margin-bottom:1rem;">
-            <img id="sc-qr-img" src="" style="width:200px;height:200px;display:block;">
-          </div>
-          <div style="margin-bottom:1.5rem;">
-            <button class="btn-modal" id="sc-copy-btn" onclick="StreamCodec.copyTransferLink()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:.8rem;padding:.5rem 1rem;">📋 Copy Link</button>
-          </div>
-          <div class="modal-actions" style="flex-direction:column;gap:.5rem;">
-            <button class="btn-modal cancel" onclick="document.getElementById('sc-transfer-modal').classList.remove('open')">Close</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-    }
-    
-    // Construct the mobile URL
-    let baseUrl = window.location.href.split('?')[0];
-    baseUrl = baseUrl.replace('room.php', 'mobile.php');
-    const msid = Math.random().toString(36).substr(2, 9);
-    const transferUrl = baseUrl + '?room_id=' + encodeURIComponent(_roomId) + '&player_id=' + encodeURIComponent(_playerCode) + '&msid=' + msid;
-    window._transferUrl = transferUrl; // Expose for Copy Link button
-    
-    document.getElementById('sc-qr-img').src = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(transferUrl);
-    modal.classList.add('open');
+    if (typeof showToast === 'function') showToast('Mobile transfer is no longer available', 'warn');
   };
-
-  /**
-   * copyTransferLink()
-   */
-  api.copyTransferLink = function() {
-      const btn = document.getElementById('sc-copy-btn');
-      if (!window._transferUrl) return;
-      navigator.clipboard.writeText(window._transferUrl).then(() => {
-          if (btn) {
-              btn.textContent = '✅ Copied!';
-              setTimeout(() => btn.textContent = '📋 Copy Link', 2000);
-          }
-      });
-  };
+  api.copyTransferLink = function() {};
 
   /**
    * _checkCallState(callActive) — Called from syncAndUpdate polling
@@ -924,84 +874,9 @@ const StreamCodec = (() => {
     api.showIncomingBanner(callActive.caller_name);
   };
 
-  /**
-   * handleMobileTransfer()
-   */
-  api.handleMobileTransfer = async function() {
-      if (_call) { try { await _call.leave(); } catch(e) {} }
-      if (_client) { try { await _client.disconnectUser(); } catch(e) {} }
-      _clearAllTiles();
-      _call = null;
-      _client = null;
-      _inCall = false;
-      document.getElementById('stream-video-grid').innerHTML = 
-          '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);text-align:center;">' +
-          '<div style="font-size:2rem;margin-bottom:1rem;">📱</div>' +
-          '<div style="font-weight:700;">Transferred to Mobile</div><div style="font-size:.75rem;margin-top:.4rem;line-height:1.4;">Your camera and microphone are now<br>operating on your phone.</div></div>';
-      
-      const modal = document.getElementById('sc-transfer-modal');
-      if (modal) modal.classList.remove('open');
-      
-      const st = document.getElementById('stream-status');
-      if (st) {
-          st.textContent = 'Mobile Active';
-          st.className = 'stream-status connected';
-      }
-      hide(document.getElementById('stream-call-banner'));
-      
-      // Hide buttons gracefully except settings maybe, but mobile has them
-      hide($('sc-mic')); hide($('sc-cam')); hide($('sc-speaker')); hide($('sc-call')); hide($('sc-leave'));
-  };
-
-  /**
-   * reclaimDesktopStream() — Re-initialize and rejoin call after mobile session ends.
-   * Called from room.view.php syncAndUpdate() when active_msid is cleared.
-   */
-  api.reclaimDesktopStream = async function() {
-      console.log('[StreamCodec] Reclaiming desktop stream after mobile session ended');
-      _setStatus('Reclaiming…', 'connecting');
-
-      // Clear the transfer UI
-      const grid = $('stream-video-grid');
-      if (grid) grid.innerHTML = '';
-
-      // Re-show controls
-      show($('sc-mic')); show($('sc-cam')); show($('sc-speaker')); show($('sc-leave'));
-
-      try {
-        // Get a fresh token and create new client
-        const tokenData = await _fetchToken();
-        _apiKey = tokenData.api_key;
-        _client = new _StreamVideoClient({
-          apiKey: _apiKey,
-          token: tokenData.token,
-          user: { id: _userId, name: _playerName },
-        });
-
-        // Rejoin the call
-        _call = _client.call('default', _callId);
-        await _call.join({ create: false });
-        _inCall = true;
-
-        // Re-enable camera and mic
-        try { await _call.camera.enable(); _camOn = true; }
-        catch(e) { _camOn = false; console.warn('[StreamCodec] Camera unavailable on reclaim:', e.message); }
-
-        try { await _call.microphone.enable(); _micOn = true; }
-        catch(e) { _micOn = false; console.warn('[StreamCodec] Mic unavailable on reclaim:', e.message); }
-
-        _setupParticipantWatcher();
-        _updateControls();
-        _setStatus('In call', 'connected');
-
-        if (typeof showToast === 'function') showToast('📞 Desktop stream reclaimed', 'ok');
-      } catch (err) {
-        console.error('[StreamCodec] reclaimDesktopStream error:', err);
-        _setStatus('Reclaim failed', 'error');
-        _showErrorState('Reclaim Failed', 'Could not rejoin the call: ' + (err.message || ''), () => api.reclaimDesktopStream());
-        if (typeof showToast === 'function') showToast('Failed to reclaim stream: ' + (err.message || err), 'error');
-      }
-  };
+  // handleMobileTransfer and reclaimDesktopStream removed — mobile.php no longer exists
+  api.handleMobileTransfer = function() {};
+  api.reclaimDesktopStream = function() {};
 
   /**
    * destroy() — Cleanup

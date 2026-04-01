@@ -580,8 +580,9 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <!-- Fast auth guard -->
-<script>(function(){try{var u=localStorage.getItem('omr_user');if(!u||u==='null'){window.location.replace('/login.php?return='+encodeURIComponent(location.href));}}catch(e){}})();</script>
-<script src="/firebase-config.js"></script>
+<script>(function(){try{var u=localStorage.getItem('omr_user');if(!u||u==='null'){var base=location.pathname.substring(0,location.pathname.lastIndexOf('/')+1);window.location.replace(base+'login.php?return='+encodeURIComponent(location.href));}}catch(e){}})();</script>
+<script src="firebase-config.js"></script>
+<script src="db-api.js"></script>
 </head>
 <body>
 
@@ -612,7 +613,6 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
     </div>
     <div class="up-actions">
       <button class="up-btn" onclick="openRenameModal()">✏️ Rename</button>
-      <a href="/migrate.php" class="up-btn" style="text-decoration:none;">🔄 Migrate Data</a>
       <button class="up-btn danger" onclick="handleSignOut()">Sign Out</button>
     </div>
   </div>
@@ -936,12 +936,7 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
 // ── FETCH AVAILABLE TESTS ──
 async function fetchTests() {
   try {
-    const res = await fetch('api.php', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({action: 'list_tests'})
-    });
-    const data = await res.json();
+    const data = await api({action: 'list_tests'});
     cachedTests = data.tests || [];
     return cachedTests;
   } catch(e) {
@@ -1129,14 +1124,9 @@ async function saveNewTest() {
   document.getElementById('save-test-btn-text').textContent = 'Saving...';
 
   try {
-    const res = await fetch('api.php', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({action:'save_test', test_name: name, json_data: v.data})
-    });
-    const data = await res.json();
+    const data = await api({action:'save_test', test_name: name, json_data: v.data});
     if (data.success) {
-      // Upload PDF if selected
+      // PDF uploads go to server via upload.php (server filesystem storage)
       if (pdfInput.files.length > 0) {
         document.getElementById('save-test-btn-text').textContent = 'Uploading PDF...';
         const fd = new FormData();
@@ -1144,10 +1134,13 @@ async function saveNewTest() {
         fd.append('test_name', name);
         fd.append('pdf_file', pdfInput.files[0]);
         try {
-          await fetch('api.php', { method: 'POST', body: fd });
-        } catch(e) { /* PDF upload failed, but test saved */ }
+          const upRes = await fetch('upload.php', { method: 'POST', body: fd });
+          const upData = await upRes.json();
+          if (upData.pdf_url) {
+            await db.collection('omr_tests').doc(name).update({ pdf_url: upData.pdf_url });
+          }
+        } catch(e) { console.warn('PDF upload failed:', e); }
       }
-      // Upload Solution PDF if selected
       const solPdfInput = document.getElementById('new-test-sol-pdf');
       if (solPdfInput && solPdfInput.files.length > 0) {
         document.getElementById('save-test-btn-text').textContent = 'Uploading Solution PDF...';
@@ -1156,8 +1149,12 @@ async function saveNewTest() {
         fd2.append('test_name', name);
         fd2.append('pdf_file', solPdfInput.files[0]);
         try {
-          await fetch('api.php', { method: 'POST', body: fd2 });
-        } catch(e) { /* Solution PDF upload failed */ }
+          const upRes2 = await fetch('upload.php', { method: 'POST', body: fd2 });
+          const upData2 = await upRes2.json();
+          if (upData2.pdf_url) {
+            await db.collection('omr_tests').doc(name).update({ solution_pdf_url: upData2.pdf_url });
+          }
+        } catch(e) { console.warn('Solution PDF upload failed:', e); }
       }
       // Auto-select the newly created test
       selectedTest = {name: data.name, q_count: data.q_count, test_info: v.data.test_info || {}};
@@ -1231,7 +1228,7 @@ function uploadFileWithProgress(action, testName, file, label) {
     fd.append('pdf_file', file);
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', 'api.php');
+    xhr.open('POST', 'upload.php');
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
@@ -1313,21 +1310,10 @@ async function openMapModal(testName, qCount) {
   // Fetch existing map data from test JSON
   let existingMap = null;
   try {
-    const res = await fetch('api.php', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ action: 'list_tests' })
-    });
-    const data = await res.json();
+    const data = await api({ action: 'list_tests' });
     const test = (data.tests || []).find(t => t.name === testName);
     if (test && test.has_page_map) {
-      // Need to fetch full test data to get the page_map
-      const res2 = await fetch('api.php', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ action: 'check_test', test_name: testName })
-      });
-      const d2 = await res2.json();
+      const d2 = await api({ action: 'check_test', test_name: testName });
       if (d2.page_map) existingMap = d2.page_map;
     }
   } catch(e) { /* ignore */ }
@@ -1455,12 +1441,7 @@ async function savePageMap() {
   document.getElementById('map-save-text').textContent = 'Saving...';
 
   try {
-    const res = await fetch('api.php', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ action: 'save_page_map', test_name: mapState.testName, page_map: pageMap })
-    });
-    const data = await res.json();
+    const data = await api({ action: 'save_page_map', test_name: mapState.testName, page_map: pageMap });
     if (data.success) {
       document.getElementById('map-status').textContent = '✓ Mapping saved! ' + data.pages_mapped + ' pages mapped.';
       document.getElementById('map-status').style.color = 'var(--ok)';
@@ -1579,20 +1560,15 @@ async function createRoom() {
   document.getElementById('btn-create').disabled = true;
 
   try {
-    const res = await fetch('api.php', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        action: 'create_room',
-        test_name: testName,
-        timer_mode: timerMode,
-        exam_mode: examMode,
-        duration_minutes: duration,
-        player_count: playerCount,
-        player_names: playerNames
-      })
+    const data = await api({
+      action: 'create_room',
+      test_name: testName,
+      timer_mode: timerMode,
+      exam_mode: examMode,
+      duration_minutes: duration,
+      player_count: playerCount,
+      player_names: playerNames
     });
-    const data = await res.json();
     if (data.success) {
 
       closeModal('modal-create');
@@ -1625,12 +1601,7 @@ async function joinByCode() {
   }
 
   try {
-    const res = await fetch('api.php', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({action:'validate_code', code, session_id: sessionId})
-    });
-    const data = await res.json();
+    const data = await api({action:'validate_code', code, session_id: sessionId});
     if (data.valid) {
       window.location.href = 'room.php?player_id=' + data.player_id + '&room_id=' + data.room_id;
     } else {
@@ -1663,12 +1634,7 @@ async function fetchActiveTests() {
     recent.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
     const codes = recent.map(r => r.code);
     
-    const res = await fetch('api.php', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ action: 'check_recent_rooms', codes })
-    });
-    const data = await res.json();
+    const data = await api({ action: 'check_recent_rooms', codes });
     
     if (data.success && data.rooms && data.rooms.length > 0) {
       const sec = document.getElementById('active-tests-section');
@@ -1718,12 +1684,7 @@ async function startReattempt(roomId, code) {
   document.querySelector('.loading-sub').textContent = "Rebuilding test session";
   
   try {
-    const res = await fetch('api.php', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ action: 'start_reattempt', room_id: roomId, player_id: code })
-    });
-    const data = await res.json();
+    const data = await api({ action: 'start_reattempt', room_id: roomId, player_id: code });
     if (data.success) {
       window.location.href = `room.php?player_id=${code}&room_id=${roomId}`;
     } else {
@@ -1741,7 +1702,8 @@ async function startReattempt(roomId, code) {
 // ══════════════════════════════════════════════════════════════
 auth.onAuthStateChanged(function(user) {
   if (!user) {
-    window.location.replace('/login.php?return=' + encodeURIComponent(location.href));
+    var base=location.pathname.substring(0,location.pathname.lastIndexOf('/')+1);
+    window.location.replace(base+'login.php?return=' + encodeURIComponent(location.href));
     return;
   }
   // Show profile bar
@@ -1779,7 +1741,8 @@ window.openCreateModal = function() {
 async function handleSignOut() {
   if (!confirm('Sign out of MiniShiksha?')) return;
   await omrSignOut();
-  window.location.replace('/login.php');
+  var base=location.pathname.substring(0,location.pathname.lastIndexOf('/')+1);
+  window.location.replace(base+'login.php');
 }
 
 function openRenameModal() {
@@ -1862,12 +1825,7 @@ async function editTestTag(testName, currentTag) {
   }
   
   try {
-    const res = await fetch('api.php', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ action: 'update_test_tag', test_name: testName, new_tag: newTag })
-    });
-    const d = await res.json();
+    const d = await api({ action: 'update_test_tag', test_name: testName, new_tag: newTag });
     if (d.success) {
       // showMsg doesn't work for the main list, but we can just re-render
       fetchAndRenderTests();

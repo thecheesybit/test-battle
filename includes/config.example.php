@@ -1,14 +1,12 @@
 <?php
 // includes/config.example.php
+// Minimal config — all dynamic data is in Firebase Firestore.
+// Only PDF files are stored on the server filesystem.
 
-// Define constants for paths
-define('OMR_BASE_URL', '/'); // Set to your base URL
+// PDF storage directory
 define('OMR_DATA_DIR', __DIR__ . '/../wp-content/omr-data/');
 
-// Cleanup settings
-define('CLEANUP_INTERVAL_SEC', 3600);   // Run cleanup at most once per hour
-define('ROOM_EXPIRY_HOURS', 24);        // Delete rooms older than 24 hours
-
-// Add your secret keys below and rename this file to config.php
+// GetStream Video Credentials (used by stream.php for JWT token minting)
+// Add your keys below and rename this file to config.php
 define('STREAM_API_KEY', 'YOUR_STREAM_API_KEY_HERE');
 define('STREAM_API_SECRET', 'YOUR_STREAM_API_SECRET_HERE');

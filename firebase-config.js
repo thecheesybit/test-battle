@@ -66,14 +66,7 @@ auth.onAuthStateChanged(user => {
 });
 
 // ── Firestore helpers ─────────────────────────────────────────
-function fsRoom(roomId)       { return db.collection('rooms').doc(roomId); }
-function fsTest(testName)     { return db.collection('tests').doc(testName); }
+function fsRoom(roomId)       { return db.collection('omr_rooms').doc(roomId); }
+function fsTest(testName)     { return db.collection('omr_tests').doc(testName); }
 function fsUser(uid)          { return db.collection('users').doc(uid); }
 function fsResults(uid)       { return db.collection('results').where('all_player_uids', 'array-contains', uid).orderBy('played_at', 'desc'); }
-
-// ── Token helper (for PHP API calls) ─────────────────────────
-async function omrGetIdToken() {
-  const user = auth.currentUser;
-  if (!user) return null;
-  return user.getIdToken(false);
-}

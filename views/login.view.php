@@ -115,9 +115,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Syne',
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="/firebase-config.js"></script>
+<script src="firebase-config.js"></script>
 <script>
-const RETURN_URL = <?php echo json_encode($return_url ?? '/test.php'); ?>;
+const RETURN_URL = <?php echo json_encode($return_url ?? 'test.php'); ?>;
 
 // If already signed in, redirect straight away
 auth.onAuthStateChanged(user => {

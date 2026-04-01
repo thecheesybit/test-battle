@@ -57,25 +57,8 @@ function actionGetToken($input) {
         jsonOut(['error' => 'room_id and player_id are required'], 400);
     }
 
-    // Validate player belongs to this room
-    $room = loadRoom($roomId);
-    if (!$room) {
-        jsonOut(['error' => 'Room not found'], 404);
-    }
-    $playerFound = false;
-    foreach ($room['players'] as $p) {
-        if (($p['code'] ?? '') === $playerId) {
-            $playerFound = true;
-            // Use actual name from room data if available
-            if (!empty($p['name'])) {
-                $playerName = $p['name'];
-            }
-            break;
-        }
-    }
-    if (!$playerFound) {
-        jsonOut(['error' => 'Player not found in this room'], 403);
-    }
+    // Room/player validation is now handled client-side via Firestore.
+    // This endpoint only mints tokens — the API secret never reaches the browser.
 
     // User ID for GetStream: use player code as unique identifier
     $userId = 'omr-' . $playerId;

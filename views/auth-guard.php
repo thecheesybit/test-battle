@@ -15,19 +15,21 @@
     var u = localStorage.getItem('omr_user');
     if (!u || u === 'null') {
       var ret = encodeURIComponent(window.location.href);
-      window.location.replace('/login.php?return=' + ret);
+      var base=location.pathname.substring(0,location.pathname.lastIndexOf('/')+1);window.location.replace(base+'login.php?return=' + ret);
     }
   } catch(e) {}
 })();
 </script>
 <!-- Full Firebase auth validation (loaded async) -->
-<script src="/firebase-config.js"></script>
+<script src="firebase-config.js"></script>
+<script src="db-api.js"></script>
 <script>
 // Proper auth check once SDK is ready
 auth.onAuthStateChanged(function(user) {
   if (!user) {
     var ret = encodeURIComponent(window.location.href);
-    window.location.replace('/login.php?return=' + ret);
+    var base=location.pathname.substring(0,location.pathname.lastIndexOf('/')+1);
+    window.location.replace(base+'login.php?return=' + ret);
   }
 });
 </script>

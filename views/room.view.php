@@ -5,14 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>MiniShiksha — OMR Room v3.0.0</title>
 <link rel="icon" href="https://minishiksha.in/wp-content/uploads/2025/06/icons8-class-pulsar-gradient-16.png" sizes="any">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <!-- Firebase Auth Guard -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script>(function(){try{var u=localStorage.getItem('omr_user');if(!u||u==='null'){window.location.replace('/login.php?return='+encodeURIComponent(location.href));}}catch(e){}})();</script>
-<script src="/firebase-config.js"></script>
+<script>(function(){try{var u=localStorage.getItem('omr_user');if(!u||u==='null'){var base=location.pathname.substring(0,location.pathname.lastIndexOf('/')+1);window.location.replace(base+'login.php?return='+encodeURIComponent(location.href));}}catch(e){}})();</script>
+<script src="firebase-config.js"></script>
+<script src="db-api.js"></script>
 <!-- GetStream SDK CDN preconnect (speeds up ESM import in stream-codec.view.php) -->
 <link rel="preconnect" href="https://esm.sh">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
@@ -1204,26 +1205,29 @@ tbody tr:hover{background:var(--surface2);}
   display:flex;align-items:center;gap:.5rem;
 }
 
-/* ── READING PHASE OVERLAY ── */
+/* ── READING PHASE BANNER ── */
 #reading-overlay{
-  position:fixed;inset:0;z-index:800;
-  background:rgba(7,8,15,.92);backdrop-filter:blur(6px);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  text-align:center;padding:2rem;
+  position:fixed;top:0;left:0;right:0;z-index:800;
+  background:rgba(10,11,22,.97);backdrop-filter:blur(8px);
+  border-bottom:2px solid var(--p2);
+  box-shadow:0 4px 24px rgba(0,0,0,.5);
   transition:opacity .5s ease;
 }
 #reading-overlay.hidden{opacity:0;pointer-events:none;}
-.reading-icon{font-size:3.5rem;margin-bottom:1rem;animation:reading-bob 2s ease-in-out infinite;}
-@keyframes reading-bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
-.reading-title{font-size:1.6rem;font-weight:800;letter-spacing:-1px;margin-bottom:.4rem;}
-.reading-sub{color:var(--muted);font-size:.9rem;margin-bottom:1.5rem;line-height:1.5;}
-.reading-countdown{
-  font-family:'JetBrains Mono',monospace;font-size:3rem;font-weight:700;
-  color:var(--p2);letter-spacing:2px;margin-bottom:1rem;
+.reading-banner-row{
+  display:flex;align-items:center;gap:.75rem;
+  padding:.55rem 1.25rem;
 }
-.reading-bar-wrap{width:220px;height:4px;background:var(--surface2);border-radius:4px;overflow:hidden;margin-bottom:1.5rem;}
-.reading-bar{height:100%;background:var(--p2);border-radius:4px;transition:width 1s linear;}
-.reading-tip{font-size:.75rem;color:var(--muted2);font-family:'JetBrains Mono',monospace;}
+.reading-icon-sm{font-size:1.5rem;flex-shrink:0;}
+.reading-banner-text{flex:1;min-width:0;}
+.reading-title{font-size:.92rem;font-weight:800;display:block;}
+.reading-sub{font-size:.72rem;color:var(--muted);display:block;margin-top:1px;}
+.reading-countdown{
+  font-family:'JetBrains Mono',monospace;font-size:1.55rem;font-weight:700;
+  color:var(--p2);letter-spacing:2px;white-space:nowrap;flex-shrink:0;
+}
+.reading-bar-wrap{height:3px;background:var(--surface2);overflow:hidden;}
+.reading-bar{height:100%;background:var(--p2);transition:width 1s linear;}
 
 /* ── EXAM MILESTONE ALERT ── */
 #exam-alert{
@@ -2003,14 +2007,17 @@ tbody tr:hover{background:var(--surface2);}
 <!-- CHAT NOTIFICATION CONTAINER -->
 <div class="chat-notif-container" id="chat-notifs"></div>
 
-<!-- ══ READING PHASE OVERLAY ══ -->
+<!-- ══ READING PHASE BANNER ══ -->
 <div id="reading-overlay" class="hidden">
-  <div class="reading-icon">📖</div>
-  <div class="reading-title">Paper Reading Time</div>
-  <div class="reading-sub">Read the question paper carefully.<br>Answering will be enabled when reading time ends.</div>
-  <div class="reading-countdown" id="reading-countdown">05:00</div>
+  <div class="reading-banner-row">
+    <span class="reading-icon-sm">📖</span>
+    <div class="reading-banner-text">
+      <span class="reading-title">Paper Reading Time</span>
+      <span class="reading-sub">Read carefully — answering disabled · use ← → to browse questions</span>
+    </div>
+    <div class="reading-countdown" id="reading-countdown">05:00</div>
+  </div>
   <div class="reading-bar-wrap"><div class="reading-bar" id="reading-bar" style="width:100%"></div></div>
-  <div class="reading-tip">⌨ Keyboard navigation active — use ← → to browse questions</div>
 </div>
 
 <!-- ══ EXAM MILESTONE ALERT ══ -->
@@ -2020,7 +2027,6 @@ tbody tr:hover{background:var(--surface2);}
 // ══════════════════════════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════════════════════════
-const API = 'api.php';
 const SYNC_INTERVAL = 2500; // ms
 const APP_START_TIME = Date.now();
 
@@ -2150,6 +2156,12 @@ async function joinRoom() {
     state.myIdx = d.player_idx;
     state.viewingIdx = d.player_idx;
     await syncRoom();
+    if (!state.room) {
+      hideGlobalLoading();
+      lobbyError('Room not found or has expired. Ask your host for a new code.');
+      showScreen('scr-lobby');
+      return;
+    }
     setGlStep('gl-step-data', 'done', 'Exam Data Loaded');
 
     // 3. Verify PDF is accessible (quick HEAD check — native viewer handles rendering)
@@ -2171,12 +2183,16 @@ async function joinRoom() {
     setGlStep('gl-step-ui', 'done', 'Environment Ready');
     hideGlobalLoading();
 
-    if (state.room.status === 'active') {
-      enterExam();
-    } else if (state.room.status === 'finished') {
-      showResultScreen();
-    } else {
-      enterWaiting();
+    try {
+      if (state.room.status === 'active') {
+        enterExam();
+      } else if (state.room.status === 'finished') {
+        showResultScreen();
+      } else {
+        enterWaiting();
+      }
+    } catch(uiErr) {
+      console.error('[joinRoom] UI init error:', uiErr);
     }
 
     // Save to recent rooms for Rejoin feature
@@ -2198,9 +2214,12 @@ async function joinRoom() {
     // Start polling
     state.syncTimer = setInterval(syncAndUpdate, SYNC_INTERVAL);
   } catch(e) {
+    console.error('[joinRoom] fatal:', e);
     hideGlobalLoading();
-    lobbyError('Failed to join room. Check your code.');
+    lobbyError(e.message || 'Failed to join room. Check your code.');
     showScreen('scr-lobby');
+    // Pre-fill code field so user can retry without retyping
+    if (MY_CODE) document.getElementById('lobby-code').value = MY_CODE;
   }
 }
 
@@ -2316,14 +2335,19 @@ async function confirmStartTest() {
 // ══════════════════════════════════════════════════════════════
 function enterExam() {
   const room = state.room;
-  document.getElementById('tb-test-name').textContent = room.test_name;
+  const tbName = document.getElementById('tb-test-name');
+  if (tbName) tbName.textContent = room.test_name;
 
-  // Init local state from server
+  // Init local state from server — merge, don't overwrite restored session data
   const myPlayer = room.players[state.myIdx];
   if (myPlayer) {
-    state.localAnswers = Object.assign({}, myPlayer.answers);
-    state.localMarked  = Object.assign({}, myPlayer.marked);
-    state.localSkipped = Object.assign({}, myPlayer.skipped);
+    const serverAns  = Object.assign({}, myPlayer.answers);
+    const serverMark = Object.assign({}, myPlayer.marked);
+    const serverSkip = Object.assign({}, myPlayer.skipped);
+    // Only take server value for keys we don't already have locally (session restore)
+    Object.keys(serverAns).forEach(k => { if (!(k in state.localAnswers) || state.localAnswers[k] === undefined) state.localAnswers[k] = serverAns[k]; });
+    Object.keys(serverMark).forEach(k => { if (!(k in state.localMarked))  state.localMarked[k]  = serverMark[k]; });
+    Object.keys(serverSkip).forEach(k => { if (!(k in state.localSkipped)) state.localSkipped[k] = serverSkip[k]; });
     state.submitted    = myPlayer.submitted;
   }
 
@@ -2334,9 +2358,6 @@ function enterExam() {
   }
 
   showScreen('scr-exam');
-
-  // Auto fullscreen on exam start
-  requestFullscreen();
 
   // Reset exam notification state (guards milestone alarms from firing twice on reconnect)
   state.autoSubmitTriggered = false;
@@ -2378,7 +2399,8 @@ function enterExam() {
 
   // Show sidebar on desktop
   if (window.innerWidth >= 768) {
-    document.getElementById('sidebar').classList.remove('hidden');
+    const sb = document.getElementById('sidebar');
+    if (sb) sb.classList.remove('hidden');
   }
 
   // PDF panel setup
@@ -2398,13 +2420,18 @@ function enterExam() {
   renderTeamStatuses();
 
   // Init StreamCodec video/voice (stream-codec.view.php)
+  // Module script may not have loaded yet — retry with delay
   const myP2 = room.players[state.myIdx];
-  if (window.StreamCodec) {
-    StreamCodec.init(ROOM_ID, MY_CODE, myP2?.name || MY_CODE).catch(err => {
-      console.warn('[Voice] StreamCodec init failed:', err?.message || err);
-      showToast('Voice SDK failed to load — check network/adblocker', 'warn');
-    });
-  }
+  const _tryInitStream = () => {
+    if (window.StreamCodec) {
+      StreamCodec.init(ROOM_ID, MY_CODE, myP2?.name || MY_CODE).catch(err => {
+        console.warn('[Voice] StreamCodec init failed:', err?.message || err);
+        showToast('Voice SDK failed to load — check network/adblocker', 'warn');
+      });
+    }
+  };
+  if (window.StreamCodec) _tryInitStream();
+  else setTimeout(_tryInitStream, 1500);
 
   // Restore currentQ from Firestore if we joined via direct URL (no localStorage)
   if (!getSavedSession()) {
@@ -2476,7 +2503,7 @@ function tickTimer() {
     if (barEl) barEl.style.width = ((readRem / 300) * 100).toFixed(1) + '%';
     // Show overlay if not already visible
     const overlay = document.getElementById('reading-overlay');
-    if (overlay && overlay.classList.contains('hidden')) overlay.classList.remove('hidden');
+    if (overlay && overlay.classList.contains('hidden')) { overlay.style.display = ''; overlay.classList.remove('hidden'); }
     return;
   }
 
@@ -3242,6 +3269,7 @@ function switchSidebarTool(tool) {
 function toggleToolsPanel() {
   const panel = document.getElementById('tools-panel');
   const fab = document.getElementById('tools-fab');
+  if (!panel) return;
   const isOpen = panel.classList.toggle('open');
   if (fab) fab.classList.toggle('active', isOpen);
   if (isOpen) {
@@ -3536,7 +3564,7 @@ function forceEndTest() {
 // ══════════════════════════════════════════════════════════════
 async function syncRoom() {
   try {
-    const d = await api({action:'sync', room_id:ROOM_ID, player_id:MY_CODE});
+    const d = await api({action:'sync', room_id:ROOM_ID, player_id:MY_CODE, session_id:SESSION_ID});
     if (d.error) return;
     // Merge server state but keep local answers optimistically
     if (state.room) {
@@ -3580,7 +3608,7 @@ async function syncAndUpdate() {
     // Check pending reveal votes
     checkPendingReveal();
     // Check if all submitted
-    if (room.players.every(p => p.submitted) && !document.getElementById('scr-result').classList.contains('active')) {
+    if (room.players.every(p => p.submitted) && !document.getElementById('scr-result')?.classList.contains('active')) {
       clearInterval(state.syncTimer);
       clearInterval(state.timerTick);
       showResultScreen();
@@ -3589,14 +3617,14 @@ async function syncAndUpdate() {
     renderWaiting();
     // If someone else started, enter exam
   } else if (room.status === 'finished') {
-    if (document.getElementById('scr-result').classList.contains('active')) return;
+    if (document.getElementById('scr-result')?.classList.contains('active')) return;
     clearInterval(state.syncTimer);
     clearInterval(state.timerTick);
     showResultScreen();
   }
 
   // Transition from waiting to active
-  if (room.status === 'active' && document.getElementById('scr-waiting').classList.contains('active')) {
+  if (room.status === 'active' && document.getElementById('scr-waiting')?.classList.contains('active')) {
     enterExam();
   }
 
@@ -3625,6 +3653,7 @@ function updateScoreChips() {
   const room = state.room;
   if (!room || room.status === 'finished') return;
   const chips = document.getElementById('score-chips');
+  if (!chips) return;
   // Count answered (not score — we don't have answer key during test)
   chips.innerHTML = room.players.map((p, i) => {
     const ans = (i === state.myIdx) ? state.localAnswers : p.answers;
@@ -3639,6 +3668,7 @@ function updateOnlineDots() {
   const room = state.room;
   if (!room) return;
   const dots = document.getElementById('online-dots');
+  if (!dots) return;
   dots.innerHTML = room.players.map((p, i) => {
     const online = room.online?.[i];
     return `<div class="online-dot ${online?'on':''}" style="background:var(--${PLAYER_COLORS[i]})" 
@@ -4044,13 +4074,14 @@ let _mobileTab = 'options';
 function switchExamTab(tab) {
   _mobileTab = tab;
   const scr = document.getElementById('scr-exam');
-  scr.dataset.tab = tab;
+  if (scr) scr.dataset.tab = tab;
   document.querySelectorAll('.exam-tab-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
   // When switching to navigator, ensure sidebar is not hidden
   if (tab === 'navigator') {
-    document.getElementById('sidebar').classList.remove('hidden');
+    const sb = document.getElementById('sidebar');
+    if (sb) sb.classList.remove('hidden');
   }
   // Load PDF lazily on first visit to PDF tab
   if (tab === 'pdf') {
@@ -4068,7 +4099,8 @@ function switchExamTab(tab) {
 
 function initExamTabs(room) {
   // Set default tab
-  document.getElementById('scr-exam').dataset.tab = 'options';
+  const scrExam = document.getElementById('scr-exam');
+  if (scrExam) scrExam.dataset.tab = 'options';
   _mobileTab = 'options';
   document.querySelectorAll('.exam-tab-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === 'options');
@@ -4396,6 +4428,10 @@ async function refreshPage() {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  if (id !== 'scr-exam') {
+    const ro = document.getElementById('reading-overlay');
+    if (ro) { ro.classList.add('hidden'); ro.style.display = 'none'; }
+  }
 }
 
 function closeAllModals() {
@@ -4449,28 +4485,7 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-async function api(payload) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-  try {
-    const r = await fetch(API, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload),
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    const data = await r.json();
-    if (!r.ok) {
-      throw new Error(data.error || 'HTTP ' + r.status);
-    }
-    return data;
-  } catch(e) {
-    clearTimeout(timeoutId);
-    if (e.name === 'AbortError') throw new Error('Request timed out');
-    throw e;
-  }
-}
+// api() function is now provided by db-api.js (Firestore-backed)
 
 function launchConfetti() {
   const colors = ['#5b7fff','#ff5f7e','#ffe156','#4fffb0','#ff8c42'];
@@ -4710,6 +4725,7 @@ function saveSession() {
     localAnswers: state.localAnswers,
     localMarked: state.localMarked,
     localSkipped: state.localSkipped,
+    viewedQ: Array.from(state.viewedQ),
   }));
   // Also mirror to Firestore (non-blocking)
   saveStateToFirestore();
@@ -4887,6 +4903,15 @@ function exportResultPdf() {
 async function init() {
   // Case 1: Direct URL with player_id + room_id
   if (MY_CODE && ROOM_ID) {
+    // Restore session data (answers, viewed questions) from localStorage if available
+    const saved1 = getSavedSession();
+    if (saved1 && saved1.room_id === ROOM_ID && saved1.player_id === MY_CODE) {
+      if (saved1.localAnswers) state.localAnswers = saved1.localAnswers;
+      if (saved1.localMarked) state.localMarked = saved1.localMarked;
+      if (saved1.localSkipped) state.localSkipped = saved1.localSkipped;
+      if (Array.isArray(saved1.viewedQ)) state.viewedQ = new Set(saved1.viewedQ);
+      if (typeof saved1.currentQIdx === 'number') state.currentQIdx = saved1.currentQIdx;
+    }
     await joinRoom();
     return;
   }
@@ -4909,6 +4934,7 @@ async function init() {
     if (saved.localAnswers) state.localAnswers = saved.localAnswers;
     if (saved.localMarked) state.localMarked = saved.localMarked;
     if (saved.localSkipped) state.localSkipped = saved.localSkipped;
+    if (Array.isArray(saved.viewedQ)) state.viewedQ = new Set(saved.viewedQ);
     if (typeof saved.currentQIdx === 'number') state.currentQIdx = saved.currentQIdx;
     history.replaceState({}, '', 'room.php?player_id=' + MY_CODE + '&room_id=' + ROOM_ID);
     try {
@@ -5240,7 +5266,7 @@ const VoiceChannel = (() => {
     try {
       const myName = state.room?.players?.[state.myIdx]?.name || MY_CODE;
       // Request token from stream.php (POST JSON required)
-      const res  = await fetch('/stream.php', {
+      const res  = await fetch('stream.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'get_token', room_id: ROOM_ID, player_id: MY_CODE, player_name: myName }),
@@ -5248,13 +5274,20 @@ const VoiceChannel = (() => {
       const data = await res.json();
       if (!data.token) throw new Error(data.error || 'No token');
 
-      const { StreamVideoClient } = window.StreamVideoClient ?? {};
-      if (!StreamVideoClient) {
-        showToast('Voice SDK not loaded — open the Voice tab again after page refresh', 'error');
+      // Prefer StreamCodec (loaded via module script) for voice
+      if (window.StreamCodec) {
+        StreamCodec.startCall();
         return;
       }
 
-      _client = new StreamVideoClient({
+      // Fallback: use GetStream SDK if loaded globally
+      const SVC = window.StreamVideoClient;
+      if (!SVC) {
+        showToast('Voice SDK still loading — please try again in a few seconds', 'warn');
+        return;
+      }
+
+      _client = new SVC({
         apiKey: <?php echo json_encode(STREAM_API_KEY); ?>,
         user: { id: MY_CODE, name: myName },
         token: data.token,
