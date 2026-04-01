@@ -125,6 +125,26 @@ class PlayerController {
         ]);
     }
 
+    public function renamePlayer($input) {
+        $roomId = trim($input['room_id'] ?? '');
+        $code   = strtoupper(trim($input['player_id'] ?? ''));
+        $name   = trim($input['name'] ?? '');
+        if (!$roomId || !$code || !$name) jsonOut(['error' => 'Missing params'], 400);
+        $name = mb_substr($name, 0, 50);
+
+        $index = loadCodesIndex();
+        if (!isset($index[$code])) jsonOut(['error' => 'Invalid code'], 400);
+        $pidx = $index[$code]['player_idx'];
+
+        $success = updateRoom($roomId, function(&$room) use ($pidx, $name) {
+            $room['players'][$pidx]['name'] = $name;
+            return true;
+        });
+
+        if (!$success) jsonOut(['error' => 'Room not found'], 404);
+        jsonOut(['success' => true]);
+    }
+
     public function startReattempt($input) {
         $roomId = trim($input['room_id'] ?? '');
         $code = strtoupper(trim($input['player_id'] ?? ''));

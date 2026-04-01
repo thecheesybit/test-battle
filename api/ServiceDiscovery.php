@@ -15,6 +15,7 @@ class ServiceDiscovery {
         'player_join'         => ['PlayerController', 'playerJoin'],
         'submit_player'       => ['PlayerController', 'submitPlayer'],
         'start_reattempt'     => ['PlayerController', 'startReattempt'],
+        'rename_player'       => ['PlayerController', 'renamePlayer'],
 
         // Test
         'check_test'          => ['TestController', 'checkTest'],
@@ -34,6 +35,7 @@ class ServiceDiscovery {
         'update_current_q'    => ['ExamController', 'updateCurrentQ'],
         'brb'                 => ['ExamController', 'brb'],
         'send_message'        => ['ExamController', 'sendMessage'],
+        'update_player_status'=> ['ExamController', 'updatePlayerStatus'],
         
         // Discovery
         'discover'            => ['ServiceDiscovery', 'discover'],

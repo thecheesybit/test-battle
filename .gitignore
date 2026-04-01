@@ -6,3 +6,9 @@ wp-content/omr-data/
 
 # Mac OS Directory Meta
 .DS_Store
+
+
+.env
+firebase-service-account.json
+wp-content/omr-data/
+node_modules/

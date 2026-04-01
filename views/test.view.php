@@ -543,7 +543,45 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .tile-badge.action.sol-edit { border-color: var(--warn); color: var(--warn); }
 .tile-badge.action.map-add { border-color: var(--accent); color: var(--accent); }
 .tile-badge.action.map-edit { border-color: var(--muted); color: var(--muted); }
+
+/* ── USER PROFILE BAR ── */
+.user-profile-bar{
+  display:flex;align-items:center;gap:.85rem;
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:.8rem 1.2rem;margin-bottom:2rem;
+  width:100%;max-width:800px;position:relative;
+}
+.user-profile-bar img{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);flex-shrink:0;}
+.user-profile-bar .up-name{font-weight:700;font-size:.95rem;}
+.user-profile-bar .up-email{font-size:.75rem;color:var(--muted);margin-top:2px;}
+.user-profile-bar .up-actions{margin-left:auto;display:flex;gap:.5rem;align-items:center;}
+.up-btn{padding:.4rem .9rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);
+  color:var(--muted);font-family:'Syne',sans-serif;font-size:.75rem;font-weight:600;cursor:pointer;transition:var(--tr);}
+.up-btn:hover{border-color:var(--accent);color:var(--text);}
+.up-btn.danger:hover{border-color:var(--accent2);color:var(--accent2);}
+
+/* ── HISTORY SECTION ── */
+.history-section{width:100%;max-width:800px;margin-bottom:2.5rem;display:none;}
+.history-row{display:flex;align-items:center;gap:1rem;padding:.85rem 1rem;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  margin-bottom:.6rem;cursor:pointer;transition:var(--tr);}
+.history-row:hover{border-color:var(--accent);background:rgba(91,127,255,.04);}
+.history-icon{font-size:1.5rem;flex-shrink:0;}
+.history-info{flex:1;min-width:0;}
+.history-name{font-weight:700;font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.history-meta{font-size:.75rem;color:var(--muted);margin-top:2px;font-family:'JetBrains Mono',monospace;}
+.history-score{font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:700;flex-shrink:0;text-align:right;}
+.history-score .ok{color:var(--ok);}
+.history-score .bad{color:var(--accent2);}
+.history-empty{text-align:center;padding:2rem;color:var(--muted);font-size:.85rem;}
 </style>
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<!-- Fast auth guard -->
+<script>(function(){try{var u=localStorage.getItem('omr_user');if(!u||u==='null'){window.location.replace('/login.php?return='+encodeURIComponent(location.href));}}catch(e){}})();</script>
+<script src="/firebase-config.js"></script>
 </head>
 <body>
 
@@ -563,6 +601,28 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
       <span class="h1-line2">Prep Room</span>
     </h1>
     <div class="tagline">Create multiplayer OMR test rooms instantly. Upload your answer key<br>and let the battle begin.</div>
+  </div>
+
+  <!-- ── USER PROFILE BAR ── -->
+  <div class="user-profile-bar" id="user-profile-bar" style="display:none;">
+    <img id="up-photo" src="" alt="Profile" onerror="this.style.display='none'">
+    <div>
+      <div class="up-name" id="up-name">Loading…</div>
+      <div class="up-email" id="up-email"></div>
+    </div>
+    <div class="up-actions">
+      <button class="up-btn" onclick="openRenameModal()">✏️ Rename</button>
+      <a href="/migrate.php" class="up-btn" style="text-decoration:none;">🔄 Migrate Data</a>
+      <button class="up-btn danger" onclick="handleSignOut()">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- ── HISTORY SECTION ── -->
+  <div class="history-section" id="history-section">
+    <div class="section-label" style="justify-content:center;text-align:center;margin-bottom:1rem;">
+      <span style="background:var(--bg);padding:0 10px;color:var(--accent);">📜 Exam History</span>
+    </div>
+    <div id="history-list"></div>
   </div>
 
   <!-- ── ACTIVE TESTS (REJOIN) ── -->
@@ -642,6 +702,21 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
     </div>
 
     <div class="form-group">
+      <label style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Exam Mode</span>
+        <label class="toggle-switch" style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.75rem;color:var(--muted);text-transform:none;letter-spacing:0;">
+          <input type="checkbox" id="c-exam-mode" onchange="onExamModeToggle(this.checked)" style="display:none;">
+          <span id="exam-mode-pill" style="width:36px;height:20px;border-radius:10px;background:var(--border);display:inline-block;position:relative;transition:.2s;flex-shrink:0;"><span style="width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:.2s;" id="exam-mode-knob"></span></span>
+          <span id="exam-mode-label">Off</span>
+        </label>
+      </label>
+      <div id="exam-mode-hint" style="display:none;margin-top:.5rem;padding:.5rem .75rem;background:rgba(79,255,176,.06);border:1px solid rgba(79,255,176,.2);border-radius:8px;font-size:.75rem;color:var(--ok);font-family:'JetBrains Mono',monospace;line-height:1.5;">
+        📖 5-min paper reading (no answers) → ⏳ 2h 5min answering<br>
+        🔔 Alarms at 1hr done · 30min left · 5min left
+      </div>
+    </div>
+
+    <div class="form-group">
       <label>Number of Players</label>
       <div class="toggle-group" id="player-count-toggle">
         <button class="toggle-btn active" data-val="1" onclick="setToggle('player-count-toggle',this);updatePlayerInputs()">Solo</button>
@@ -704,7 +779,10 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
           </select>
         </div>
         <div class="form-group" style="margin-bottom:.75rem;">
-          <label>Answer Key JSON</label>
+          <label style="display:flex;align-items:center;justify-content:space-between;">
+            <span>Answer Key JSON</span>
+            <button type="button" onclick="copyAiPrompt()" id="ai-prompt-btn" style="background:rgba(91,127,255,0.12);border:1px solid rgba(91,127,255,0.3);color:var(--accent);border-radius:6px;padding:.2rem .6rem;font-size:.68rem;font-family:'JetBrains Mono',monospace;cursor:pointer;transition:var(--tr);letter-spacing:0;text-transform:none;display:flex;align-items:center;gap:.3rem;" onmouseover="this.style.background='rgba(91,127,255,0.22)'" onmouseout="this.style.background='rgba(91,127,255,0.12)'">🤖 Copy AI Prompt</button>
+          </label>
           <textarea id="new-test-json" placeholder='Paste the full JSON content here...&#10;&#10;{"test_info":{...},"responses":{"Q1":"a","Q2":"b",...}}'></textarea>
         </div>
         <div class="form-group" style="margin-bottom:.75rem;">
@@ -797,6 +875,29 @@ function setToggle(groupId, btn) {
 function getActiveVal(groupId) {
   const btn = document.querySelector('#' + groupId + ' .toggle-btn.active');
   return btn ? btn.dataset.val : null;
+}
+
+function onExamModeToggle(on) {
+  const pill  = document.getElementById('exam-mode-pill');
+  const knob  = document.getElementById('exam-mode-knob');
+  const label = document.getElementById('exam-mode-label');
+  const hint  = document.getElementById('exam-mode-hint');
+  const dur   = document.getElementById('c-duration');
+  if (on) {
+    pill.style.background  = 'var(--ok)';
+    knob.style.left        = '19px';
+    label.textContent      = 'On';
+    label.style.color      = 'var(--ok)';
+    hint.style.display     = '';
+    if (dur) dur.value     = 130;
+  } else {
+    pill.style.background  = 'var(--border)';
+    knob.style.left        = '3px';
+    label.textContent      = 'Off';
+    label.style.color      = 'var(--muted)';
+    hint.style.display     = 'none';
+    if (dur && dur.value === '130') dur.value = 120;
+  }
 }
 
 // ── PLAYER INPUTS ──
@@ -1378,6 +1479,54 @@ async function savePageMap() {
   }
 }
 
+// ── AI PROMPT COPY ──
+function copyAiPrompt() {
+  const prompt = `Generate a JSON answer key for an OMR exam. Output ONLY valid JSON with no explanation, no markdown, no code fences.
+
+Use EXACTLY this structure:
+{
+  "test_info": {
+    "title": "Exam Title Here",
+    "subject": "Subject Name",
+    "tag": "GS"
+  },
+  "responses": {
+    "Q1": "a",
+    "Q2": "b",
+    "Q3": "c",
+    "Q4": "d"
+  },
+  "questions": {
+    "Q1": "Full text of question 1?",
+    "Q2": "Full text of question 2?"
+  },
+  "options": {
+    "Q1": ["First option", "Second option", "Third option", "Fourth option"],
+    "Q2": ["First option", "Second option", "Third option", "Fourth option"]
+  }
+}
+
+Rules:
+- \'responses\' is REQUIRED. Values must be exactly: a, b, c, or d (lowercase only).
+- Question keys must be Q1, Q2, Q3 ... (uppercase Q followed by number).
+- \'questions\' and \'options\' are optional but recommended if you have the paper text.
+- \'options\' must have exactly 4 strings per question.
+- \'test_info.tag\' should be one of: General, GS, CSAT.
+- Output nothing except the JSON object.`;
+  navigator.clipboard.writeText(prompt).then(() => {
+    const btn = document.getElementById('ai-prompt-btn');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓ Copied!';
+    btn.style.color = 'var(--ok)';
+    btn.style.borderColor = 'var(--ok)';
+    setTimeout(() => { btn.innerHTML = orig; btn.style.color = 'var(--accent)'; btn.style.borderColor = 'rgba(91,127,255,0.3)'; }, 2000);
+  }).catch(() => {
+    const btn = document.getElementById('ai-prompt-btn');
+    btn.innerHTML = '❌ Failed';
+    setTimeout(() => { btn.innerHTML = '🤖 Copy AI Prompt'; }, 1500);
+  });
+}
+
 // ── JSON VALIDATION ──
 function validateJSON(raw) {
   try {
@@ -1414,7 +1563,8 @@ async function createRoom() {
 
   const testName    = selectedTest.name;
   const timerMode   = getActiveVal('timer-mode-toggle');
-  const duration    = parseInt(document.getElementById('c-duration')?.value || 120);
+  const examMode    = document.getElementById('c-exam-mode')?.checked || false;
+  const duration    = parseInt(document.getElementById('c-duration')?.value || (examMode ? 130 : 120));
   const playerCount = parseInt(getActiveVal('player-count-toggle'));
 
   // Collect player names
@@ -1436,6 +1586,7 @@ async function createRoom() {
         action: 'create_room',
         test_name: testName,
         timer_mode: timerMode,
+        exam_mode: examMode,
         duration_minutes: duration,
         player_count: playerCount,
         player_names: playerNames
@@ -1582,6 +1733,119 @@ async function startReattempt(roomId, code) {
   } catch(e) {
     document.getElementById('loading-overlay').classList.remove('show');
     alert("Network error. Please try again.");
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  FIREBASE AUTH — test.view.php
+// ══════════════════════════════════════════════════════════════
+auth.onAuthStateChanged(function(user) {
+  if (!user) {
+    window.location.replace('/login.php?return=' + encodeURIComponent(location.href));
+    return;
+  }
+  // Show profile bar
+  const bar = document.getElementById('user-profile-bar');
+  if (bar) {
+    document.getElementById('up-photo').src  = user.photoURL  || '';
+    document.getElementById('up-name').textContent  = user.displayName || 'User';
+    document.getElementById('up-email').textContent = user.email || '';
+    bar.style.display = 'flex';
+  }
+  // Auto-fill first player name in create room modal with Google display name
+  autoFillPlayerName(user.displayName);
+  // Load history from Firestore
+  loadExamHistory(user.uid);
+});
+
+function autoFillPlayerName(displayName) {
+  if (!displayName) return;
+  const inputs = document.querySelectorAll('.player-name-input');
+  if (inputs[0] && !inputs[0].value) {
+    inputs[0].value = displayName;
+  }
+}
+
+// Re-apply when create room modal opens (player inputs may be reset)
+const _origOpenCreateModal = window.openCreateModal;
+window.openCreateModal = function() {
+  if (_origOpenCreateModal) _origOpenCreateModal();
+  setTimeout(() => {
+    const user = omrGetStoredUser();
+    if (user && user.displayName) autoFillPlayerName(user.displayName);
+  }, 50);
+};
+
+async function handleSignOut() {
+  if (!confirm('Sign out of MiniShiksha?')) return;
+  await omrSignOut();
+  window.location.replace('/login.php');
+}
+
+function openRenameModal() {
+  const user = omrGetStoredUser();
+  const cur  = user ? (user.displayName || '') : '';
+  const name = prompt('Enter display name:', cur);
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim().slice(0, 50);
+  auth.currentUser.updateProfile({ displayName: trimmed }).then(() => {
+    // Update Firestore user doc
+    if (auth.currentUser) {
+      db.collection('users').doc(auth.currentUser.uid).set(
+        { displayName: trimmed },
+        { merge: true }
+      );
+    }
+    omrStoreUser({ ...omrGetStoredUser(), displayName: trimmed });
+    document.getElementById('up-name').textContent = trimmed;
+  }).catch(e => alert('Failed to update name: ' + e.message));
+}
+
+// ══════════════════════════════════════════════════════════════
+//  EXAM HISTORY
+// ══════════════════════════════════════════════════════════════
+async function loadExamHistory(uid) {
+  const sec  = document.getElementById('history-section');
+  const list = document.getElementById('history-list');
+  if (!sec || !list) return;
+
+  list.innerHTML = '<div class="history-empty">Loading history…</div>';
+  sec.style.display = '';
+
+  try {
+    const snap = await fsResults(uid).limit(20).get();
+    if (snap.empty) {
+      list.innerHTML = '<div class="history-empty">No exam history yet. Complete a test to see results here.</div>';
+      return;
+    }
+    let html = '';
+    snap.forEach(doc => {
+      const r = doc.data();
+      const played = r.played_at ? new Date(r.played_at.seconds * 1000) : null;
+      const dateStr = played ? played.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+      // Find this user's score
+      const me = (r.players || []).find(p => p.uid === uid) || r.players?.[0] || {};
+      const correct = me.correct || 0;
+      const wrong   = me.wrong   || 0;
+      const total   = correct + wrong + (me.skip || 0);
+      const pct     = total > 0 ? Math.round(correct / total * 100) : 0;
+      const win     = r.winner_uid === uid;
+      html += `<div class="history-row" onclick="window.location.href='room.php?room_id=${escHtml(r.room_id)}&player_id=${escHtml(r.player_code || '')}'">
+        <div class="history-icon">${win ? '🏆' : '📝'}</div>
+        <div class="history-info">
+          <div class="history-name">${escHtml(r.test_name || 'Test')}</div>
+          <div class="history-meta">${dateStr} · ${r.players ? r.players.length : 1} player(s)</div>
+        </div>
+        <div class="history-score">
+          <span class="ok">+${correct}</span> / <span class="bad">-${wrong}</span><br>
+          <span style="color:var(--muted);font-size:.7rem;">${pct}%</span>
+        </div>
+      </div>`;
+    });
+    list.innerHTML = html;
+  } catch(e) {
+    list.innerHTML = '<div class="history-empty" style="color:var(--warn);">Could not load history. Check Firestore setup.</div>';
+    console.warn('History load error:', e);
   }
 }
 

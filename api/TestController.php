@@ -212,10 +212,10 @@ class TestController {
         $data = json_decode(file_get_contents($testFile), true);
         if (!$data) jsonOut(['error' => 'Failed to read test data'], 500);
 
-        // Validate page_map structure
+        // Validate page_map structure: keys are page numbers, values are start question numbers (integers)
         foreach ($pageMap as $pageNum => $mapping) {
-            if (!is_array($mapping)) {
-                jsonOut(['error' => 'Invalid page_map: each entry must be an object'], 400);
+            if (!is_int($mapping) && !ctype_digit((string)$mapping)) {
+                jsonOut(['error' => 'Invalid page_map: each entry must be a question number (integer)'], 400);
             }
         }
 

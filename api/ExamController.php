@@ -6,7 +6,7 @@ class ExamController {
         $roomId = trim($input['room_id'] ?? '');
         $code = strtoupper(trim($input['player_id'] ?? ''));
         $qid = trim($input['q_id'] ?? '');
-        $answer = $input['answer'] !== null ? strtolower(trim($input['answer'])) : null;
+        $answer = isset($input['answer']) ? strtolower(trim($input['answer'])) : null;
         $marked = isset($input['marked']) ? (bool)$input['marked'] : null;
         $skipped = isset($input['skipped']) ? (bool)$input['skipped'] : null;
 
@@ -284,7 +284,7 @@ class ExamController {
         }
 
         if ($room['timer_mode'] === 'countdown' && $room['started_at'] && $room['status'] === 'active') {
-            $elapsed = $now - $room['started_at'];
+            $elapsed = $now - $room['started_at'] - ($room['total_paused_sec'] ?? 0);
             if ($elapsed >= $room['duration_sec']) {
                 $needsWrite = true;
             }
@@ -334,7 +334,7 @@ class ExamController {
                     }
                 }
                 if ($r['timer_mode'] === 'countdown' && $r['started_at'] && $r['status'] === 'active') {
-                    $elapsed = $now - $r['started_at'];
+                    $elapsed = $now - $r['started_at'] - ($r['total_paused_sec'] ?? 0);
                     if ($elapsed >= $r['duration_sec']) {
                         $r['status'] = 'finished';
                         $r['ended_at'] = $now;
@@ -380,6 +380,7 @@ class ExamController {
             'pdf_url' => $room['pdf_url'] ?? null,
             'solution_pdf_url' => $room['solution_pdf_url'] ?? null,
             'page_map' => $room['page_map'] ?? null,
+            'exam_mode' => $room['exam_mode'] ?? false,
             'pending_reveal' => $room['pending_reveal'] ?? null,
             'paused_until' => $room['paused_until'] ?? 0,
             'total_paused_sec' => $room['total_paused_sec'] ?? 0,
@@ -442,6 +443,30 @@ class ExamController {
             if (count($room['chat']) > 50) {
                 $room['chat'] = array_slice($room['chat'], -50);
             }
+            return true;
+        });
+
+        if (!$success) jsonOut(['error' => 'Room not found'], 404);
+        jsonOut(['success' => true]);
+    }
+
+    public function updatePlayerStatus($input) {
+        $roomId = trim($input['room_id'] ?? '');
+        $code   = strtoupper(trim($input['player_id'] ?? ''));
+        $status = trim($input['status'] ?? 'active');
+        if (!$roomId || !$code) jsonOut(['error' => 'Missing params'], 400);
+
+        $allowed = ['active', 'brb', 'break', 'help'];
+        if (!in_array($status, $allowed, true)) jsonOut(['error' => 'Invalid status'], 400);
+
+        $index = loadCodesIndex();
+        if (!isset($index[$code])) jsonOut(['error' => 'Invalid code'], 400);
+        $pidx = $index[$code]['player_idx'];
+
+        $success = updateRoom($roomId, function(&$room) use ($pidx, $status) {
+            if (!isset($room['players'][$pidx])) return false;
+            $room['players'][$pidx]['status']    = $status;
+            $room['players'][$pidx]['online_at'] = time();
             return true;
         });
 

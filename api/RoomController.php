@@ -9,7 +9,10 @@ class RoomController {
         $testName = trim($input['test_name'] ?? '');
         $jsonData = $input['json_data'] ?? null;
         $timerMode = $input['timer_mode'] ?? 'countdown';
-        $durationMin = intval($input['duration_minutes'] ?? 120);
+        $examMode = !empty($input['exam_mode']);
+        // Exam mode defaults to 130 min (5 reading + 125 answering) if not specified
+        $defaultDuration = $examMode ? 130 : 120;
+        $durationMin = intval($input['duration_minutes'] ?? $defaultDuration);
         $playerCount = intval($input['player_count'] ?? 1);
         $playerNames = $input['player_names'] ?? [];
 
@@ -119,6 +122,7 @@ class RoomController {
             'pdf_url' => $pdfUrl,
             'solution_pdf_url' => $solPdfUrl,
             'page_map' => $pageMap,
+            'exam_mode' => $examMode,
             'created_at' => time(),
             'last_updated' => time(),
         ];
